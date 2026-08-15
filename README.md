@@ -8,30 +8,41 @@ your farm — one day at a time.
 
 - **Fields** — buy seeds and plant them. Crops take a few days to mature;
   harvest once ready. Planting a *different* crop than grew there last time
-  earns a crop-rotation yield bonus. "Harvest All" clears every ready field
-  in one click.
-- **Animals** — buy chickens, sheep, cows, pigs, goats, and alpacas. Feed
-  them daily (or "Feed All" at once) to keep them producing eggs, wool,
-  milk, truffles, and more. Animals left unfed for 3 days in a row run away.
-  Your barn has a capacity — expand it with machinery.
-- **Market** — sell harvested crops and animal produce for cash. Prices
-  drift a little each day, so timing sales matters. Storage has a capacity;
-  once full, extra harvests are wasted.
-- **Machinery** — tractors, irrigation, a harvester, greenhouse, feed silo,
-  storage barn, and barn expansion — permanent bonuses to growth speed,
-  yield, feed cost, or capacity. Higher-tier machines unlock at higher farm
-  levels.
+  earns a crop-rotation bonus, and harvesting a crop in its favored season
+  (spring/summer/fall/winter, a 7-day cycle) earns another. Fertilizer adds
+  a further one-cycle yield boost. "Harvest All" / "Plant All" handle a
+  whole farm's fields in one click; fields can be nicknamed.
+- **Animals** — buy chickens, sheep, cows, pigs, goats, alpacas, and (at
+  higher levels) ostriches. Feed them daily (or "Feed All" at once) for
+  eggs, wool, milk, truffles, and more. Well-fed animals occasionally breed
+  for free. Animals left unfed for 3 days run away — insure one to protect
+  it, or automate feeding entirely with a Farmhand machine. Your barn has a
+  capacity — expand it with machinery. Animals can be nicknamed.
+- **Market** — sell harvested crops and animal produce for cash, or "Sell
+  All" at once. Prices drift a little each day, so timing sales matters. A
+  visiting trader occasionally offers a premium for one random item.
+  Storage has a capacity; a Compost Bin turns what would spoil into
+  fertilizer instead of wasting it.
+- **Machinery** — tractors, irrigation, harvesters, greenhouses, feed silos,
+  storage/barn expansion, a Farmhand (auto-feeds daily), an Auto-Harvester
+  Drone (auto-harvests daily), and a Compost Bin. Higher-tier machines
+  (through level 6) unlock as your farm levels up.
 - **Leveling** — harvesting, selling, and buying earn XP. Every 100 XP is a
   new farm level, unlocking higher-tier crops, animals, and machinery.
-- **Daily Goals** — a random daily objective (harvest 3x / earn $50 / feed 2
-  / plant 2) rewards cash + XP if completed before you end the day.
-- **Bank** — borrow up to $1,000 with daily compounding interest; repay
-  whenever you like. Gift cash to another farmer by email.
-- **Random Events** — small daily chance of a lucky find, a generous
-  neighbor, storm damage, or pests — never enough to push cash negative.
-- **Achievements & Leaderboard** — unlock milestones and see how your net
-  worth (cash + assets − debt) compares to other farmers; view any farmer's
-  public profile.
+- **Daily & Weekly Goals** — a daily objective and a bigger weekly challenge
+  both reward cash + XP when completed.
+- **Wealth Milestones** — one-time cash + XP payouts at $1k/$5k/$10k/$25k/
+  $50k net worth.
+- **Bank & Gifts** — borrow up to $1,000 with daily compounding interest;
+  gift cash *or* inventory items to another farmer by email.
+- **Random Events** — a small daily chance of a lucky find, a generous
+  neighbor, storm damage, pests (pesticide blocks these), or the visiting
+  trader — never enough to push cash negative.
+- **Achievements, Leaderboard & Stats** — unlock badges (with progress
+  hints while locked), see how your net worth compares to other farmers
+  (searchable/sortable, with public farm profiles), and check community-wide
+  totals on the platform stats page. A dedicated Alerts feed and full
+  Activity log (with a cash-history chart) track everything that happens.
 - **End Day** — time only advances when you choose to end the day, so play
   at your own pace (not real-time/idle).
 
@@ -67,9 +78,10 @@ npm run build            # or `npm run dev` while developing
 php artisan serve
 ```
 
-Then visit `http://127.0.0.1:8000`, register an account, and you'll land on
-your farm dashboard with 4 empty fields and $500 to get started. In-app
-`/help` explains all the mechanics above.
+Then visit `http://127.0.0.1:8000` — you'll land on a Farm Sim landing
+page. Register an account and you'll get your own farm dashboard with 4
+empty fields and $500 to get started. In-app `/help` explains all the
+mechanics above.
 
 ## Running tests
 
@@ -78,7 +90,10 @@ php artisan test
 ```
 
 Tests use an in-memory SQLite database (configured in `phpunit.xml`) and
-cover the full gameplay loop, leveling gates, storage/barn capacity, loans,
-random events, animal neglect, crop rotation, quick actions, daily quests,
-gifting, market fluctuation, achievements, and the leaderboard — see
-`tests/Feature` (97 tests as of this writing).
+cover the full gameplay loop end to end — leveling gates, storage/barn
+capacity, loans, random events (including the probabilistic ones, via
+many-simulated-days invariant tests), animal neglect/insurance/breeding,
+crop rotation/seasons/fertilizer, quick/bulk actions, daily/weekly quests,
+cash/item gifting, market fluctuation, automation machinery, achievements,
+milestones, and the leaderboard — see `tests/Feature` (156 tests as of
+this writing).

@@ -14,9 +14,14 @@ end-of-day also resolves animal production, animal neglect risk, loan
 interest, a random event, the daily quest reward, and market drift, all in
 `FarmService::endDay()`.
 
-Also has: a bank (loans + cash gifting between farmers), a unified
-`transactions` activity log with a cash-history chart, achievements, and a
-net-worth leaderboard with public farm profiles.
+Also has: a bank (loans + cash/item gifting), a unified `transactions`
+activity log (backs the recent-activity feed, `/activity` cash chart, and
+`/alerts`), achievements + wealth milestones, a searchable/sortable
+net-worth leaderboard with public farm profiles, `/stats` platform-wide
+totals, seasons, animal breeding/insurance, daily + weekly challenges, a
+visiting-trader random event, and automation machinery (Farmhand,
+Auto-Harvester Drone, Compost Bin). Full feature list lives in `README.md`
+— don't duplicate it here; this file is conventions/gotchas only.
 
 Multiple accounts are supported (Laravel Breeze auth); each user has
 exactly one farm (`User hasOne Farm`), created automatically on
@@ -93,9 +98,26 @@ registration via the `CreateFarmForNewUser` listener.
   plant/buyAnimal/buyMachinery (not just hidden in the UI). `Farm::level`
   is a derived accessor from `xp` (never stored), so it can't drift out of
   sync — don't add a `level` column.
-- The daily quest (`FarmService::DAILY_QUESTS`/`todaysQuest()`) is
-  deterministic — `(farm_id + current_day) % count(quests)` — not stored,
-  so "today's quest" is always recomputable from a farm's own state.
+- The daily quest (`FarmService::DAILY_QUESTS`/`todaysQuest()`) and weekly
+  challenge (`WEEKLY_CHALLENGES`/`todaysWeeklyChallenge()`) are both
+  deterministic — `(farm_id + current_day_or_week_index) % count(pool)` —
+  not stored, so "today's/this week's" pick is always recomputable from a
+  farm's own state. The weekly reward only checks/fires when
+  `current_day % SEASON_LENGTH_DAYS === 0` (the last day of the week), so
+  it can't double-pay without needing a "claimed" column. Same trick for
+  `Farm::currentSeason()` (derived from `current_day`, never stored) and
+  wealth milestones (`MilestoneService` — "already paid" is checked by
+  scanning `transactions` for a `type = 'milestone'` row mentioning that
+  threshold, not a separate table).
+- `endDay()` order matters and is deliberate: neglect/production loop →
+  loan interest → random event → daily quest → weekly challenge → market
+  drift → **increment current_day** → auto-feed (Farmhand) → auto-harvest
+  (Drone). The automation steps run *after* the increment so a
+  Farmhand-fed animal / drone-harvested field already reads as fed/empty
+  the instant `endDay()` returns, matching what a manual feed/harvest
+  would show at that same point — putting them before the increment (as
+  first written) was an off-by-one-day bug, caught by
+  `FarmAutomationTest`.
 - Random daily events (`RANDOM_EVENTS`) and the market-price random walk
   (`driftMarketMultiplier()`) both clamp so a bad roll never pushes cash
   negative or prices outside their band — tested via invariants over many
@@ -123,3 +145,20 @@ registration via the `CreateFarmForNewUser` listener.
   instead of `loadMissing()` for the same reason. Bit us as real test
   failures once (loans/storage-cap/animal-neglect tests) — see git history
   around that fix if this class of bug resurfaces.
+- Probabilistic mechanics (random events, pesticide blocking, breeding,
+  the visiting trader) are tested via **invariants over many simulated
+  end-days** (30-100, sized so the chance of a false failure is ~0.001-1%),
+  never by forcing a specific `mt_rand` roll — see `RandomEventTest`,
+  `FarmAutomationTest`'s pesticide test, `AnimalBreedingTest`,
+  `VisitingTraderTest` for the pattern.
+- Brand colors are **emerald**, not Breeze's default indigo/gray — all of
+  `x-primary-button`/`x-secondary-button`/`x-text-input`/nav-link
+  components and every view were switched over in one pass. Keep new UI on
+  `emerald-*` (buttons/links/focus rings) plus the existing amber/warm
+  neutrals (`stone`/`amber`) for backgrounds; don't reintroduce indigo.
+- `Field::harvestYield()` bonuses (machinery yield_boost, rotation,
+  fertilizer, season) are computed fresh from model state every call, so
+  when logging a "bonus" description in `FarmService::harvest()`, snapshot
+  the boolean flags (`$rotated`, `$fertilized`, `$inSeason`) *before*
+  calling `harvestYield()` — not after, since the field gets cleared
+  (`fertilized` reset etc.) as part of the same method.
