@@ -6,9 +6,17 @@ Instructions for Claude Code when working in this repository.
 
 **Farm Sim** — a turn-based browser farming game. Each player has their own
 farm: plant and harvest crops in fields, raise and feed animals for
-produce, sell goods on the market, and buy machinery to boost yield/growth
-speed/feed costs. Time advances one "day" at a time via an explicit
-"End Day" action (not real-time/idle).
+produce, sell goods on a daily-fluctuating market, and buy machinery to
+boost yield/growth speed/feed costs/storage/barn capacity. Farms level up
+via XP, unlocking higher-tier crops/animals/machinery. Time advances one
+"day" at a time via an explicit "End Day" action (not real-time/idle) —
+end-of-day also resolves animal production, animal neglect risk, loan
+interest, a random event, the daily quest reward, and market drift, all in
+`FarmService::endDay()`.
+
+Also has: a bank (loans + cash gifting between farmers), a unified
+`transactions` activity log with a cash-history chart, achievements, and a
+net-worth leaderboard with public farm profiles.
 
 Multiple accounts are supported (Laravel Breeze auth); each user has
 exactly one farm (`User hasOne Farm`), created automatically on
@@ -80,6 +88,25 @@ registration via the `CreateFarmForNewUser` listener.
   by checking `crop_types.key` then `animal_types.produce_key` — there's no
   separate unified "products" catalog table by design (avoids a redundant
   join for a small catalog).
+- `crop_types`/`animal_types`/`machinery_types` all have a `required_level`
+  column; `FarmService::assertLevel()` enforces it server-side on
+  plant/buyAnimal/buyMachinery (not just hidden in the UI). `Farm::level`
+  is a derived accessor from `xp` (never stored), so it can't drift out of
+  sync — don't add a `level` column.
+- The daily quest (`FarmService::DAILY_QUESTS`/`todaysQuest()`) is
+  deterministic — `(farm_id + current_day) % count(quests)` — not stored,
+  so "today's quest" is always recomputable from a farm's own state.
+- Random daily events (`RANDOM_EVENTS`) and the market-price random walk
+  (`driftMarketMultiplier()`) both clamp so a bad roll never pushes cash
+  negative or prices outside their band — tested via invariants over many
+  simulated days (`RandomEventTest`, `MarketFluctuationTest`), not exact
+  values, since they're non-deterministic (`mt_rand`).
+- Every cash-affecting (and several non-cash) action logs a `Transaction`
+  via `FarmService::logTransaction()` — this single table backs the
+  dashboard's recent-activity feed, the full `/activity` history + cash
+  chart, and achievement checks (e.g. counting `type = 'harvest'` rows).
+  New gameplay actions should log one too, with `amount` null for
+  non-cash events.
 - Avoid Blade's `@disabled`/`@checked`/`@selected` directives on
   `<x-component>` tags (e.g. `<x-secondary-button>`) — they broke Blade
   compilation here (`syntax error, unexpected token "endif"`). Prefer
