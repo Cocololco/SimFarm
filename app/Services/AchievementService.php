@@ -18,7 +18,7 @@ class AchievementService
      */
     public function checkAndUnlock(Farm $farm): Collection
     {
-        $farm->loadMissing(['transactions', 'achievements']);
+        $farm->loadMissing(['transactions', 'achievements', 'loans']);
 
         $unlockedKeys = $farm->achievements->pluck('key');
 
@@ -29,6 +29,15 @@ class AchievementService
             'harvest_veteran' => fn () => $farm->transactions->where('type', 'harvest')->count() >= 10,
             'level_5' => fn () => $farm->level >= 5,
             'net_worth_5000' => fn () => $farm->netWorth() >= 5000,
+            'gift_giver' => fn () => $farm->transactions->whereIn('type', ['gift_sent', 'gift_item_sent'])->isNotEmpty(),
+            'big_spender' => fn () => $farm->transactions
+                ->filter(fn ($t) => ! is_null($t->amount) && (float) $t->amount < 0)
+                ->sum(fn ($t) => abs((float) $t->amount)) >= 1000,
+            'loan_free' => fn () => $farm->loans->isNotEmpty() && $farm->loans->contains(fn ($l) => (float) $l->balance <= 0),
+            'green_thumb' => fn () => $farm->transactions
+                ->where('type', 'harvest')
+                ->filter(fn ($t) => str_contains($t->description, 'crop rotation'))
+                ->count() >= 5,
         ];
 
         $newlyUnlocked = collect();

@@ -13,12 +13,20 @@ class Field extends Model
     /** Yield bonus for planting a different crop than grew here last (crop rotation). */
     public const ROTATION_YIELD_BONUS = 0.15;
 
+    /** Yield bonus for a field that's had fertilizer applied this cycle. */
+    public const FERTILIZER_YIELD_BONUS = 0.20;
+
     protected $fillable = [
         'farm_id',
         'plot_number',
         'crop_type_id',
         'previous_crop_type_id',
         'planted_on_day',
+        'fertilized',
+    ];
+
+    protected $casts = [
+        'fertilized' => 'boolean',
     ];
 
     public function farm(): BelongsTo
@@ -107,6 +115,10 @@ class Field extends Model
 
         if ($this->isRotated()) {
             $yieldBonus += self::ROTATION_YIELD_BONUS;
+        }
+
+        if ($this->fertilized) {
+            $yieldBonus += self::FERTILIZER_YIELD_BONUS;
         }
 
         return (int) max($this->cropType->yield_amount, floor($this->cropType->yield_amount * (1 + $yieldBonus)));

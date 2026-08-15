@@ -27,6 +27,8 @@ class FarmService
 
     public const LOAN_DAILY_INTEREST_RATE = 0.05;
 
+    public const FERTILIZER_PRICE = 15.0;
+
     /**
      * Random daily events rolled at the end of each day: [type, weight,
      * description, cash delta (positive or negative)].
@@ -97,12 +99,17 @@ class FarmService
 
         $cropType = $field->cropType;
         $rotated = $field->isRotated();
+        $fertilized = $field->fertilized;
         $amount = $field->harvestYield();
 
         $added = $this->addToInventory($farm, $cropType->key, $amount);
 
-        $rotationNote = $rotated ? ' (+crop rotation bonus)' : '';
-        $this->logTransaction($farm, 'harvest', "Harvested {$added}x {$cropType->name}.{$rotationNote}", null);
+        $bonusNotes = array_filter([
+            $rotated ? 'crop rotation' : null,
+            $fertilized ? 'fertilizer' : null,
+        ]);
+        $bonusNote = $bonusNotes ? ' (+'.implode(', +', $bonusNotes).' bonus)' : '';
+        $this->logTransaction($farm, 'harvest', "Harvested {$added}x {$cropType->name}.{$bonusNote}", null);
 
         if ($added < $amount) {
             $wasted = $amount - $added;
@@ -115,7 +122,48 @@ class FarmService
             'crop_type_id' => null,
             'previous_crop_type_id' => $cropType->id,
             'planted_on_day' => null,
+            'fertilized' => false,
         ]);
+    }
+
+    public function buyFertilizer(Farm $farm, int $quantity): void
+    {
+        if ($quantity < 1) {
+            throw ValidationException::withMessages(['quantity' => 'Invalid quantity.']);
+        }
+
+        $cost = self::FERTILIZER_PRICE * $quantity;
+
+        if (! $farm->canAfford($cost)) {
+            throw ValidationException::withMessages(['cash' => 'Not enough cash to buy that much fertilizer.']);
+        }
+
+        $farm->spendCash($cost);
+        $farm->increment('fertilizer_count', $quantity);
+        $this->logTransaction($farm, 'buy_fertilizer', "Bought {$quantity}x fertilizer.", -$cost);
+    }
+
+    public function applyFertilizer(Farm $farm, Field $field): void
+    {
+        if ($field->farm_id !== $farm->id) {
+            throw ValidationException::withMessages(['field' => 'That field does not belong to your farm.']);
+        }
+
+        if ($field->isEmpty()) {
+            throw ValidationException::withMessages(['field' => 'Plant something before fertilizing it.']);
+        }
+
+        if ($field->fertilized) {
+            throw ValidationException::withMessages(['field' => 'That field is already fertilized.']);
+        }
+
+        if ($farm->fertilizer_count < 1) {
+            throw ValidationException::withMessages(['fertilizer' => "You don't have any fertilizer — buy some first."]);
+        }
+
+        $farm->decrement('fertilizer_count');
+        $field->update(['fertilized' => true]);
+        $this->logTransaction($farm, 'apply_fertilizer', "Fertilized field #{$field->plot_number}.", null);
     }
 
     /**
@@ -356,6 +404,47 @@ class FarmService
 
         $this->logTransaction($sender, 'gift_sent', "Sent a gift of \$".number_format($amount, 2)." to {$recipient->user->name}.", -$amount);
         $this->logTransaction($recipient, 'gift_received', "Received a gift of \$".number_format($amount, 2)." from {$sender->user->name}.", $amount);
+    }
+
+    /**
+     * Sends inventory items to another farmer. If the recipient's storage
+     * can't fit the full amount, only what fits is delivered (mirroring
+     * how harvest overflow is handled) and the rest stays with the sender.
+     */
+    public function giftInventoryItem(Farm $sender, Farm $recipient, InventoryItem $item, int $quantity): void
+    {
+        if ($sender->id === $recipient->id) {
+            throw ValidationException::withMessages(['recipient' => 'You can\'t gift items to yourself.']);
+        }
+
+        if ($item->farm_id !== $sender->id) {
+            throw ValidationException::withMessages(['item' => 'That item does not belong to your farm.']);
+        }
+
+        if ($quantity < 1 || $quantity > $item->quantity) {
+            throw ValidationException::withMessages(['quantity' => 'Invalid quantity to send.']);
+        }
+
+        $delivered = $this->addToInventory($recipient, $item->item_key, $quantity);
+
+        if ($delivered <= 0) {
+            throw ValidationException::withMessages(['recipient' => "{$recipient->user->name}'s storage is full — nothing could be delivered."]);
+        }
+
+        if ($delivered === $item->quantity) {
+            $item->delete();
+        } else {
+            $item->decrement('quantity', $delivered);
+        }
+
+        $product = $item->product();
+        $this->logTransaction($sender, 'gift_item_sent', "Sent {$delivered}x {$product['name']} to {$recipient->user->name}.", null);
+        $this->logTransaction($recipient, 'gift_item_received', "Received {$delivered}x {$product['name']} from {$sender->user->name}.", null);
+
+        if ($delivered < $quantity) {
+            $short = $quantity - $delivered;
+            $this->logTransaction($sender, 'gift_item_sent', "{$short}x {$product['name']} couldn't be delivered — {$recipient->user->name}'s storage was full.", null);
+        }
     }
 
     /**

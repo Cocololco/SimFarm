@@ -53,4 +53,13 @@ class FieldController extends Controller
 
         return back()->with('status', $message);
     }
+
+    public function fertilize(Request $request, Field $field, FarmService $farmService): RedirectResponse
+    {
+        $farm = $request->user()->farm;
+
+        $farmService->applyFertilizer($farm, $field);
+
+        return back()->with('status', "Fertilized field #{$field->plot_number}.");
+    }
 }

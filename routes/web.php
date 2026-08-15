@@ -5,6 +5,7 @@ use App\Http\Controllers\AnimalController;
 use App\Http\Controllers\FarmController;
 use App\Http\Controllers\FarmProfileController;
 use App\Http\Controllers\FarmSettingsController;
+use App\Http\Controllers\FertilizerController;
 use App\Http\Controllers\FieldController;
 use App\Http\Controllers\GiftController;
 use App\Http\Controllers\LeaderboardController;
@@ -37,6 +38,9 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::post('/fields/harvest-all', [FieldController::class, 'harvestAll'])->name('fields.harvest-all');
     Route::post('/fields/{field}/plant', [FieldController::class, 'plant'])->name('fields.plant');
     Route::post('/fields/{field}/harvest', [FieldController::class, 'harvest'])->name('fields.harvest');
+    Route::post('/fields/{field}/fertilize', [FieldController::class, 'fertilize'])->name('fields.fertilize');
+
+    Route::post('/fertilizer/buy', [FertilizerController::class, 'store'])->name('fertilizer.buy');
 
     Route::post('/animals/buy', [AnimalController::class, 'store'])->name('animals.buy');
     Route::post('/animals/feed-all', [AnimalController::class, 'feedAll'])->name('animals.feed-all');
@@ -53,6 +57,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::post('/turn/end', [TurnController::class, 'end'])->name('turn.end');
 
     Route::post('/gifts', [GiftController::class, 'store'])->name('gifts.store');
+    Route::post('/gifts/items/{item}', [GiftController::class, 'storeItem'])->name('gifts.store-item');
 
     Route::get('/activity', [ActivityController::class, 'index'])->name('activity.index');
     Route::get('/leaderboard', [LeaderboardController::class, 'index'])->name('leaderboard.index');

@@ -50,6 +50,21 @@
                 </div>
             @endif
 
+            {{-- Needs attention --}}
+            @php($readyFields = $farm->fields->filter(fn ($f) => $f->isReady())->count())
+            @php($unfedAnimals = $farm->animals->filter(fn ($a) => ! $a->isFedToday())->count())
+            @php($storageFull = $farm->storageCapacity() > 0 && $farm->inventoryUsed() / $farm->storageCapacity() >= 0.9)
+            @if ($readyFields || $unfedAnimals || $storageFull)
+                <div class="rounded-md bg-indigo-50 border border-indigo-200 px-4 py-3 text-sm text-indigo-800">
+                    📋 Needs attention:
+                    @if ($readyFields) {{ $readyFields }} field(s) ready to harvest @endif
+                    @if ($readyFields && $unfedAnimals) · @endif
+                    @if ($unfedAnimals) {{ $unfedAnimals }} animal(s) not fed today @endif
+                    @if (($readyFields || $unfedAnimals) && $storageFull) · @endif
+                    @if ($storageFull) storage almost full @endif
+                </div>
+            @endif
+
             {{-- Today's Goal --}}
             @php($quest = $questProgress['quest'])
             <div class="bg-white overflow-hidden shadow-sm rounded-lg p-6 border-l-4 {{ $questProgress['completed'] ? 'border-green-400' : 'border-indigo-300' }}">
@@ -70,14 +85,22 @@
 
             {{-- Fields --}}
             <div class="bg-white overflow-hidden shadow-sm rounded-lg p-6">
-                <div class="flex items-center justify-between mb-4">
+                <div class="flex items-center justify-between mb-4 flex-wrap gap-2">
                     <h3 class="text-lg font-semibold text-gray-800">🌱 Fields</h3>
-                    @if ($farm->fields->contains(fn ($f) => $f->isReady()))
-                        <form method="POST" action="{{ route('fields.harvest-all') }}">
+                    <div class="flex items-center gap-2">
+                        <span class="text-xs text-gray-500">🧪 {{ $farm->fertilizer_count }} fertilizer</span>
+                        <form method="POST" action="{{ route('fertilizer.buy') }}">
                             @csrf
-                            <x-secondary-button type="submit" class="text-xs">Harvest All</x-secondary-button>
+                            <input type="hidden" name="quantity" value="1">
+                            <x-secondary-button type="submit" class="text-xs">Buy Fertilizer (${{ number_format(\App\Services\FarmService::FERTILIZER_PRICE, 2) }})</x-secondary-button>
                         </form>
-                    @endif
+                        @if ($farm->fields->contains(fn ($f) => $f->isReady()))
+                            <form method="POST" action="{{ route('fields.harvest-all') }}">
+                                @csrf
+                                <x-secondary-button type="submit" class="text-xs">Harvest All</x-secondary-button>
+                            </form>
+                        @endif
+                    </div>
                 </div>
                 <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
                     @foreach ($farm->fields as $field)
@@ -100,8 +123,10 @@
                             @elseif ($field->isReady())
                                 <div class="text-3xl mb-2">{{ $field->cropType->icon }}</div>
                                 <p class="text-sm font-medium text-green-700 mb-1">{{ $field->cropType->name }} ready! (+{{ $field->harvestYield() }})</p>
-                                @if ($field->isRotated())
-                                    <p class="text-xs text-emerald-600 mb-2">🔄 Crop rotation bonus!</p>
+                                @if ($field->isRotated() || $field->fertilized)
+                                    <p class="text-xs text-emerald-600 mb-2">
+                                        {{ $field->isRotated() ? '🔄 Rotation' : '' }}{{ $field->isRotated() && $field->fertilized ? ' + ' : '' }}{{ $field->fertilized ? '🧪 Fertilized' : '' }} bonus!
+                                    </p>
                                 @else
                                     <div class="mb-2"></div>
                                 @endif
@@ -111,10 +136,21 @@
                                 </form>
                             @else
                                 <div class="text-3xl mb-2">{{ $field->cropType->icon }}</div>
-                                <p class="text-sm text-gray-500 mb-3">{{ $field->cropType->name }} growing… {{ $field->daysRemaining() }} day(s) left</p>
-                                <div class="h-2 w-full bg-gray-200 rounded-full overflow-hidden">
+                                <p class="text-sm text-gray-500 mb-1">{{ $field->cropType->name }} growing… {{ $field->daysRemaining() }} day(s) left</p>
+                                @if ($field->fertilized)
+                                    <p class="text-xs text-emerald-600 mb-2">🧪 Fertilized</p>
+                                @else
+                                    <div class="mb-2"></div>
+                                @endif
+                                <div class="h-2 w-full bg-gray-200 rounded-full overflow-hidden mb-2">
                                     <div class="h-full bg-amber-400" style="width: {{ min(100, (int) round((($farm->current_day - $field->planted_on_day) / max(1, $field->effectiveGrowthDays())) * 100)) }}%"></div>
                                 </div>
+                                @if (! $field->fertilized && $farm->fertilizer_count > 0)
+                                    <form method="POST" action="{{ route('fields.fertilize', $field) }}">
+                                        @csrf
+                                        <x-secondary-button type="submit" class="w-full justify-center text-xs">Apply Fertilizer</x-secondary-button>
+                                    </form>
+                                @endif
                             @endif
                         </div>
                     @endforeach
@@ -248,7 +284,7 @@
                                     <th class="py-2 pr-4">Quantity</th>
                                     <th class="py-2 pr-4">Unit price</th>
                                     <th class="py-2 pr-4">Total</th>
-                                    <th class="py-2"></th>
+                                    <th class="py-2" colspan="2"></th>
                                 </tr>
                             </thead>
                             <tbody>
@@ -265,6 +301,14 @@
                                                 @csrf
                                                 <input type="hidden" name="quantity" value="{{ $item->quantity }}">
                                                 <x-secondary-button type="submit" class="text-xs">Sell all</x-secondary-button>
+                                            </form>
+                                        </td>
+                                        <td class="py-2">
+                                            <form method="POST" action="{{ route('gifts.store-item', $item) }}" class="flex items-center gap-1">
+                                                @csrf
+                                                <input type="email" name="recipient_email" placeholder="email" class="rounded-md border-gray-300 text-xs w-28" required>
+                                                <input type="number" name="quantity" value="{{ $item->quantity }}" min="1" max="{{ $item->quantity }}" class="rounded-md border-gray-300 text-xs w-14" required>
+                                                <x-secondary-button type="submit" class="text-xs">🎁</x-secondary-button>
                                             </form>
                                         </td>
                                     </tr>
