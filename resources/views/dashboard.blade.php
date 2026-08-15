@@ -11,6 +11,9 @@
                 <span class="inline-flex items-center gap-1 rounded-full bg-amber-100 px-3 py-1 text-amber-800">
                     📅 Day {{ $farm->current_day }}
                 </span>
+                <span class="inline-flex items-center gap-1 rounded-full bg-sky-100 px-3 py-1 text-sky-800 capitalize">
+                    {{ \App\Models\Farm::seasonIcon($farm->currentSeason()) }} {{ $farm->currentSeason() }}
+                </span>
                 <span class="inline-flex items-center gap-1 rounded-full bg-green-100 px-3 py-1 text-green-800">
                     💰 ${{ number_format((float) $farm->cash, 2) }}
                 </span>
@@ -20,23 +23,58 @@
                 </form>
             </div>
         </div>
-        <div class="mt-3 max-w-xs">
-            <div class="flex justify-between text-xs text-gray-500 mb-1">
-                <span>XP</span>
-                <span>{{ $farm->xpIntoLevel() }} / {{ \App\Models\Farm::XP_PER_LEVEL }}</span>
+        <div class="mt-3 flex flex-wrap gap-6">
+            <div class="max-w-xs w-full sm:w-56">
+                <div class="flex justify-between text-xs text-gray-500 mb-1">
+                    <span>XP</span>
+                    <span>{{ $farm->xpIntoLevel() }} / {{ \App\Models\Farm::XP_PER_LEVEL }}</span>
+                </div>
+                <div class="h-1.5 w-full bg-gray-200 rounded-full overflow-hidden">
+                    <div class="h-full bg-purple-400" style="width: {{ (int) round(($farm->xpIntoLevel() / \App\Models\Farm::XP_PER_LEVEL) * 100) }}%"></div>
+                </div>
             </div>
-            <div class="h-1.5 w-full bg-gray-200 rounded-full overflow-hidden">
-                <div class="h-full bg-purple-400" style="width: {{ (int) round(($farm->xpIntoLevel() / \App\Models\Farm::XP_PER_LEVEL) * 100) }}%"></div>
-            </div>
+            @if ($nextMilestone)
+                <div class="max-w-xs w-full sm:w-56">
+                    <div class="flex justify-between text-xs text-gray-500 mb-1">
+                        <span>💰 Next milestone</span>
+                        <span>${{ number_format($nextMilestone['progress'], 0) }} / ${{ number_format($nextMilestone['threshold'], 0) }}</span>
+                    </div>
+                    <div class="h-1.5 w-full bg-gray-200 rounded-full overflow-hidden">
+                        <div class="h-full bg-emerald-400" style="width: {{ min(100, (int) round(($nextMilestone['progress'] / $nextMilestone['threshold']) * 100)) }}%"></div>
+                    </div>
+                </div>
+            @endif
         </div>
     </x-slot>
 
     <div class="py-12">
         <div class="max-w-7xl mx-auto sm:px-6 lg:px-8 space-y-6">
 
+            @if (session('celebrate'))
+                <style>
+                    @keyframes celebrate-pop {
+                        0% { transform: scale(0.85); opacity: 0; }
+                        60% { transform: scale(1.03); opacity: 1; }
+                        100% { transform: scale(1); opacity: 1; }
+                    }
+                    @keyframes celebrate-emoji {
+                        0% { transform: translateY(0) rotate(0deg); opacity: 1; }
+                        100% { transform: translateY(-24px) rotate(15deg); opacity: 0; }
+                    }
+                    .celebrate-banner { animation: celebrate-pop 0.4s ease-out; }
+                    .celebrate-emoji { display: inline-block; animation: celebrate-emoji 1.1s ease-in forwards; }
+                </style>
+            @endif
+
             @if (session('status'))
-                <div class="rounded-md bg-green-50 border border-green-200 px-4 py-3 text-sm text-green-800">
+                <div class="rounded-md {{ session('celebrate') ? 'celebrate-banner bg-amber-50 border-amber-300' : 'bg-green-50 border-green-200' }} border px-4 py-3 text-sm {{ session('celebrate') ? 'text-amber-900' : 'text-green-800' }}">
+                    @if (session('celebrate'))
+                        <span class="celebrate-emoji">🎉</span>
+                    @endif
                     {{ session('status') }}
+                    @if (session('celebrate'))
+                        <span class="celebrate-emoji" style="animation-delay: 0.15s">✨</span>
+                    @endif
                 </div>
             @endif
 
@@ -79,6 +117,24 @@
                             {{ $questProgress['completed'] ? '✅' : '' }}
                         </p>
                         <p class="text-xs text-gray-400">Reward: ${{ $quest['reward_cash'] }} + {{ $quest['reward_xp'] }} XP at End Day</p>
+                    </div>
+                </div>
+            </div>
+
+            {{-- Weekly Challenge --}}
+            @php($challenge = $weeklyChallengeProgress['challenge'])
+            <div class="bg-white overflow-hidden shadow-sm rounded-lg p-6 border-l-4 {{ $weeklyChallengeProgress['completed'] ? 'border-green-400' : 'border-teal-300' }}">
+                <div class="flex items-center justify-between flex-wrap gap-2">
+                    <div>
+                        <h3 class="text-sm font-semibold text-gray-500 uppercase tracking-wide">🗓️ Weekly Challenge <span class="normal-case text-gray-400">(day {{ $weeklyChallengeProgress['day_in_week'] }} / {{ \App\Models\Farm::SEASON_LENGTH_DAYS }})</span></h3>
+                        <p class="text-base text-gray-800">{{ $challenge['description'] }}</p>
+                    </div>
+                    <div class="text-right">
+                        <p class="text-sm font-medium {{ $weeklyChallengeProgress['completed'] ? 'text-green-600' : 'text-gray-600' }}">
+                            {{ min($weeklyChallengeProgress['progress'], $challenge['goal']) }} / {{ $challenge['goal'] }}
+                            {{ $weeklyChallengeProgress['completed'] ? '✅' : '' }}
+                        </p>
+                        <p class="text-xs text-gray-400">Reward: ${{ $challenge['reward_cash'] }} + {{ $challenge['reward_xp'] }} XP on the last day of the week</p>
                     </div>
                 </div>
             </div>
@@ -136,7 +192,7 @@
                                     <select name="crop_type_id" class="w-full rounded-md border-gray-300 text-sm" required>
                                         <option value="">Select seed…</option>
                                         @foreach ($cropTypes->where('required_level', '<=', $farm->level) as $crop)
-                                            <option value="{{ $crop->id }}">{{ $crop->icon }} {{ $crop->name }} (${{ number_format((float) $crop->seed_price, 2) }})</option>
+                                            <option value="{{ $crop->id }}">{{ $crop->icon }} {{ $crop->name }} (${{ number_format((float) $crop->seed_price, 2) }}){{ $crop->season === $farm->currentSeason() ? ' 🌟 in season' : '' }}</option>
                                         @endforeach
                                     </select>
                                     <x-secondary-button type="submit" class="w-full justify-center">Plant</x-secondary-button>
@@ -219,21 +275,32 @@
                                 <input type="text" name="nickname" value="{{ $animal->nickname }}" placeholder="{{ $animal->animalType->name }}" class="text-sm font-medium text-gray-800 border-0 border-b border-transparent hover:border-gray-300 focus:border-gray-400 focus:ring-0 px-0 py-0 bg-transparent w-full" maxlength="255">
                                 <button type="submit" class="text-xs text-gray-300 hover:text-gray-500">✓</button>
                             </form>
-                            <p class="text-xs text-gray-500 mb-3">
+                            <p class="text-xs text-gray-500 mb-1">
                                 @if ($animal->isFedToday())
                                     Fed today ✅
+                                @elseif ($animal->isInsured())
+                                    🛡️ Insured — safe from neglect
                                 @elseif ($daysUnfed >= 2)
                                     ⚠️ Unfed {{ $daysUnfed }} days — at risk!
                                 @else
                                     Not fed today
                                 @endif
                             </p>
-                            <div class="flex gap-2">
+                            <div class="mb-2"></div>
+                            <div class="flex gap-2 flex-wrap">
                                 @unless ($animal->isFedToday())
                                     <form method="POST" action="{{ route('animals.feed', $animal) }}" class="flex-1">
                                         @csrf
                                         <x-secondary-button type="submit" class="w-full justify-center text-xs">
                                             Feed (${{ number_format($animal->animalType->feed_cost, 2) }})
+                                        </x-secondary-button>
+                                    </form>
+                                @endunless
+                                @unless ($animal->isInsured())
+                                    <form method="POST" action="{{ route('animals.insure', $animal) }}">
+                                        @csrf
+                                        <x-secondary-button type="submit" class="text-xs" title="Protects from neglect loss for {{ \App\Services\FarmService::INSURANCE_DAYS }} days">
+                                            🛡️ (${{ number_format(\App\Services\FarmService::INSURANCE_PRICE, 2) }})
                                         </x-secondary-button>
                                     </form>
                                 @endunless

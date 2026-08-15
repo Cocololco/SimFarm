@@ -34,6 +34,13 @@ class FarmService
     /** With a Compost Bin, every N wasted (storage-full) crop units become 1 fertilizer. */
     public const COMPOST_WASTE_PER_FERTILIZER = 3;
 
+    public const INSURANCE_PRICE = 30.0;
+
+    public const INSURANCE_DAYS = 5;
+
+    /** Chance (0-1) a fed animal produces a free baby animal at end of day. */
+    public const BREEDING_CHANCE = 0.05;
+
     /**
      * Random daily events rolled at the end of each day: [type, weight,
      * description, cash delta (positive or negative)].
@@ -43,10 +50,14 @@ class FarmService
         ['type' => 'lucky_find', 'weight' => 6, 'description' => 'You found an old chest buried in a field!', 'amount' => 40],
         ['type' => 'storm_damage', 'weight' => 10, 'description' => 'A storm damaged a fence; minor repairs needed.', 'amount' => -15],
         ['type' => 'pest_trouble', 'weight' => 8, 'description' => 'Pests got into storage; some supplies were lost.', 'amount' => -20],
+        ['type' => 'visiting_trader', 'weight' => 7, 'description' => 'A traveling trader offered a great price for your goods.', 'amount' => 0],
     ];
 
     /** Out of 100 weight points, the rest of the time nothing happens. */
     private const RANDOM_EVENT_TOTAL_WEIGHT = 100;
+
+    /** Multiplier the visiting trader pays over base sell price for one random item's full stock. */
+    private const TRADER_PRICE_MULTIPLIER = 1.75;
 
     /** Market multiplier applied to inventory sales is kept within this band. */
     private const MARKET_MULTIPLIER_MIN = 0.70;
@@ -65,6 +76,16 @@ class FarmService
         ['key' => 'earn_50', 'type' => 'sell_amount', 'goal' => 50, 'description' => 'Earn $50 selling goods', 'reward_cash' => 25, 'reward_xp' => 10],
         ['key' => 'feed_2', 'type' => 'feed', 'goal' => 2, 'description' => 'Feed 2 animals', 'reward_cash' => 20, 'reward_xp' => 10],
         ['key' => 'plant_2', 'type' => 'plant', 'goal' => 2, 'description' => 'Plant 2 seeds', 'reward_cash' => 15, 'reward_xp' => 10],
+    ];
+
+    /**
+     * One weekly challenge is deterministically assigned per farm per
+     * 7-day week and checked/rewarded on the last day of that week.
+     */
+    private const WEEKLY_CHALLENGES = [
+        ['key' => 'weekly_harvest', 'type' => 'harvest', 'goal' => 20, 'description' => 'Harvest crops 20 times this week', 'reward_cash' => 150, 'reward_xp' => 60],
+        ['key' => 'weekly_earn', 'type' => 'sell_amount', 'goal' => 300, 'description' => 'Earn $300 selling goods this week', 'reward_cash' => 120, 'reward_xp' => 50],
+        ['key' => 'weekly_feed', 'type' => 'feed', 'goal' => 15, 'description' => 'Feed animals 15 times this week', 'reward_cash' => 100, 'reward_xp' => 50],
     ];
 
     public function plant(Farm $farm, Field $field, CropType $cropType): void
@@ -125,6 +146,7 @@ class FarmService
         $cropType = $field->cropType;
         $rotated = $field->isRotated();
         $fertilized = $field->fertilized;
+        $inSeason = $field->isInSeason();
         $amount = $field->harvestYield();
 
         $added = $this->addToInventory($farm, $cropType->key, $amount);
@@ -132,6 +154,7 @@ class FarmService
         $bonusNotes = array_filter([
             $rotated ? 'crop rotation' : null,
             $fertilized ? 'fertilizer' : null,
+            $inSeason ? 'in-season' : null,
         ]);
         $bonusNote = $bonusNotes ? ' (+'.implode(', +', $bonusNotes).' bonus)' : '';
         $this->logTransaction($farm, 'harvest', "Harvested {$added}x {$cropType->name}.{$bonusNote}", null);
@@ -312,6 +335,25 @@ class FarmService
         $farm->addXp(1);
 
         $animal->update(['fed_on_day' => $farm->current_day]);
+    }
+
+    public function insureAnimal(Farm $farm, Animal $animal): void
+    {
+        if ($animal->farm_id !== $farm->id) {
+            throw ValidationException::withMessages(['animal' => 'That animal does not belong to your farm.']);
+        }
+
+        if ($animal->isInsured()) {
+            throw ValidationException::withMessages(['animal' => 'That animal is already insured.']);
+        }
+
+        if (! $farm->canAfford(self::INSURANCE_PRICE)) {
+            throw ValidationException::withMessages(['cash' => 'Not enough cash to buy insurance.']);
+        }
+
+        $farm->spendCash(self::INSURANCE_PRICE);
+        $animal->update(['insured_until_day' => $farm->current_day + self::INSURANCE_DAYS]);
+        $this->logTransaction($farm, 'insure_animal', "Insured {$animal->animalType->name} for ".self::INSURANCE_DAYS.' days.', -self::INSURANCE_PRICE);
     }
 
     /**
@@ -558,6 +600,12 @@ class FarmService
                     }
                 }
 
+                $this->maybeBreed($farm, $animal);
+
+                continue;
+            }
+
+            if ($animal->isInsured()) {
                 continue;
             }
 
@@ -583,6 +631,7 @@ class FarmService
 
         $this->rollRandomEvent($farm);
         $this->rewardQuestIfComplete($farm);
+        $this->rewardWeeklyChallengeIfComplete($farm);
         $this->driftMarketMultiplier($farm);
 
         $farm->increment('current_day');
@@ -673,6 +722,94 @@ class FarmService
         );
     }
 
+    public function currentWeekIndex(Farm $farm): int
+    {
+        return intdiv($farm->current_day - 1, Farm::SEASON_LENGTH_DAYS);
+    }
+
+    public function todaysWeeklyChallenge(Farm $farm): array
+    {
+        $week = $this->currentWeekIndex($farm);
+        $index = ($farm->id + $week) % count(self::WEEKLY_CHALLENGES);
+
+        return self::WEEKLY_CHALLENGES[$index];
+    }
+
+    /**
+     * @return array{challenge: array, progress: float, completed: bool, day_in_week: int}
+     */
+    public function weeklyChallengeProgress(Farm $farm): array
+    {
+        $challenge = $this->todaysWeeklyChallenge($farm);
+        $week = $this->currentWeekIndex($farm);
+        $startDay = $week * Farm::SEASON_LENGTH_DAYS + 1;
+        $endDay = $startDay + Farm::SEASON_LENGTH_DAYS - 1;
+        $thisWeek = $farm->transactions()->whereBetween('day', [$startDay, $endDay]);
+
+        $progress = match ($challenge['type']) {
+            'harvest' => (clone $thisWeek)->where('type', 'harvest')->count(),
+            'sell_amount' => (float) (clone $thisWeek)->where('type', 'sell')->sum('amount'),
+            'feed' => (clone $thisWeek)->where('type', 'feed')->count(),
+            default => 0,
+        };
+
+        return [
+            'challenge' => $challenge,
+            'progress' => $progress,
+            'completed' => $progress >= $challenge['goal'],
+            'day_in_week' => (($farm->current_day - 1) % Farm::SEASON_LENGTH_DAYS) + 1,
+        ];
+    }
+
+    /**
+     * Only checked/rewarded on the last day of each week, so it fires
+     * exactly once per week without needing extra "claimed" state.
+     */
+    private function rewardWeeklyChallengeIfComplete(Farm $farm): void
+    {
+        if ($farm->current_day % Farm::SEASON_LENGTH_DAYS !== 0) {
+            return;
+        }
+
+        $result = $this->weeklyChallengeProgress($farm);
+
+        if (! $result['completed']) {
+            return;
+        }
+
+        $challenge = $result['challenge'];
+        $farm->addCash($challenge['reward_cash']);
+        $farm->addXp($challenge['reward_xp']);
+        $this->logTransaction(
+            $farm,
+            'weekly_challenge_reward',
+            "Weekly challenge complete: {$challenge['description']}!",
+            (float) $challenge['reward_cash']
+        );
+    }
+
+    /**
+     * A well-fed animal has a small chance of producing a free baby of the
+     * same type, if there's room in the barn.
+     */
+    private function maybeBreed(Farm $farm, Animal $animal): void
+    {
+        if ($farm->animalsOwned() >= $farm->animalCapacity()) {
+            return;
+        }
+
+        if (mt_rand(1, 100) > self::BREEDING_CHANCE * 100) {
+            return;
+        }
+
+        $farm->animals()->create([
+            'animal_type_id' => $animal->animal_type_id,
+            'purchased_on_day' => $farm->current_day,
+        ]);
+
+        $this->logTransaction($farm, 'animal_born', "Your {$animal->animalType->name} had a baby! 🐣", null);
+    }
+
     private function rollRandomEvent(Farm $farm): void
     {
         $roll = mt_rand(1, self::RANDOM_EVENT_TOTAL_WEIGHT);
@@ -688,6 +825,12 @@ class FarmService
             if ($event['type'] === 'pest_trouble' && $farm->pesticide_count > 0) {
                 $farm->decrement('pesticide_count');
                 $this->logTransaction($farm, 'pesticide_blocked', 'Your pesticide stock kept pests away today.', null);
+
+                return;
+            }
+
+            if ($event['type'] === 'visiting_trader') {
+                $this->resolveVisitingTrader($farm);
 
                 return;
             }
@@ -711,6 +854,36 @@ class FarmService
         }
 
         // Remaining weight: a quiet day, nothing logged.
+    }
+
+    /**
+     * A visiting trader buys one randomly-picked inventory stack in full,
+     * at a bonus price. If the farm has nothing to sell, the visit is
+     * logged but has no effect.
+     */
+    private function resolveVisitingTrader(Farm $farm): void
+    {
+        $item = $farm->inventoryItems()->inRandomOrder()->first();
+
+        if (! $item) {
+            $this->logTransaction($farm, 'trader_visit', 'A traveling trader visited, but you had nothing to sell.', null);
+
+            return;
+        }
+
+        $product = $item->product();
+        $total = round($product['sell_price'] * self::TRADER_PRICE_MULTIPLIER * $item->quantity, 2);
+        $quantity = $item->quantity;
+
+        $farm->addCash($total);
+        $item->delete();
+
+        $this->logTransaction(
+            $farm,
+            'trader_visit',
+            "A traveling trader paid a premium for {$quantity}x {$product['name']}!",
+            $total
+        );
     }
 
     private function assertLevel(Farm $farm, int $requiredLevel, string $field, string $name): void

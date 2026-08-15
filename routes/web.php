@@ -52,6 +52,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::post('/animals/feed-all', [AnimalController::class, 'feedAll'])->name('animals.feed-all');
     Route::post('/animals/{animal}/feed', [AnimalController::class, 'feed'])->name('animals.feed');
     Route::post('/animals/{animal}/rename', [AnimalController::class, 'rename'])->name('animals.rename');
+    Route::post('/animals/{animal}/insure', [AnimalController::class, 'insure'])->name('animals.insure');
     Route::delete('/animals/{animal}', [AnimalController::class, 'destroy'])->name('animals.sell');
 
     Route::post('/inventory/sell-all', [MarketController::class, 'sellAll'])->name('inventory.sell-all');

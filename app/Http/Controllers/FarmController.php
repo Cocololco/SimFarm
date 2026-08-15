@@ -7,13 +7,18 @@ use App\Models\CropType;
 use App\Models\MachineryType;
 use App\Services\AchievementService;
 use App\Services\FarmService;
+use App\Services\MilestoneService;
 use Illuminate\Http\Request;
 use Illuminate\View\View;
 
 class FarmController extends Controller
 {
-    public function show(Request $request, FarmService $farmService, AchievementService $achievementService): View
-    {
+    public function show(
+        Request $request,
+        FarmService $farmService,
+        AchievementService $achievementService,
+        MilestoneService $milestoneService
+    ): View {
         $farm = $request->user()->farm()->with([
             'fields.cropType',
             'animals.animalType',
@@ -24,10 +29,14 @@ class FarmController extends Controller
         ])->firstOrFail();
 
         $newlyUnlocked = $achievementService->checkAndUnlock($farm);
+        $newMilestones = $milestoneService->checkAndReward($farm);
 
-        if ($newlyUnlocked->isNotEmpty()) {
-            $names = $newlyUnlocked->map(fn ($a) => "{$a->icon} {$a->name}")->implode(', ');
-            session()->flash('status', "Achievement unlocked: {$names}");
+        $celebrations = $newlyUnlocked->map(fn ($a) => "{$a->icon} {$a->name}")
+            ->concat($newMilestones->map(fn ($m) => '💰 Reached $'.number_format($m['threshold']).' net worth'));
+
+        if ($celebrations->isNotEmpty()) {
+            session()->flash('status', 'Achievement unlocked: '.$celebrations->implode(', ').'!');
+            session()->flash('celebrate', true);
             $farm->load('achievements');
         }
 
@@ -40,7 +49,9 @@ class FarmController extends Controller
             'recentTransactions' => $farm->transactions()->limit(8)->get(),
             'maxLoanAmount' => FarmService::MAX_LOAN_AMOUNT,
             'questProgress' => $farmService->questProgress($farm),
+            'weeklyChallengeProgress' => $farmService->weeklyChallengeProgress($farm),
             'achievementProgress' => $achievementService->progressFor($farm),
+            'nextMilestone' => $milestoneService->nextThreshold($farm),
         ]);
     }
 }

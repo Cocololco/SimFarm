@@ -21,6 +21,11 @@ class Farm extends Model
     /** Animals a farm can own before any barn-expanding machinery. */
     public const BASE_ANIMAL_CAPACITY = 6;
 
+    /** Days each season lasts; the cycle is spring -> summer -> fall -> winter -> repeat. */
+    public const SEASON_LENGTH_DAYS = 7;
+
+    private const SEASONS = ['spring', 'summer', 'fall', 'winter'];
+
     protected $fillable = [
         'user_id',
         'name',
@@ -141,6 +146,29 @@ class Farm extends Model
     public function addXp(int $amount): void
     {
         $this->increment('xp', $amount);
+    }
+
+    /**
+     * The farm's current season, a repeating spring/summer/fall/winter
+     * cycle of SEASON_LENGTH_DAYS days each, purely derived from
+     * current_day (never stored) so it can't drift out of sync.
+     */
+    public function currentSeason(): string
+    {
+        $index = intdiv($this->current_day - 1, self::SEASON_LENGTH_DAYS) % count(self::SEASONS);
+
+        return self::SEASONS[$index];
+    }
+
+    public static function seasonIcon(string $season): string
+    {
+        return match ($season) {
+            'spring' => '🌸',
+            'summer' => '☀️',
+            'fall' => '🍂',
+            'winter' => '❄️',
+            default => '',
+        };
     }
 
     /**

@@ -15,7 +15,12 @@
 
             <div class="bg-white overflow-hidden shadow-sm rounded-lg p-6 space-y-3">
                 <h3 class="text-lg font-semibold text-gray-800">🐮 Animals</h3>
-                <p>Buy animals and feed them daily to keep them producing eggs, milk, wool, and more. Animals left unfed for 3 days in a row will run away — keep an eye on the ⚠️ warning. Your barn can only hold so many animals; buy a Barn Expansion to make room.</p>
+                <p>Buy animals and feed them daily to keep them producing eggs, milk, wool, and more. Animals left unfed for 3 days in a row will run away — keep an eye on the ⚠️ warning, or buy 🛡️ insurance to protect one for 5 days. Well-fed animals occasionally have a free baby (5% chance/day). Your barn can only hold so many animals; buy a Barn Expansion to make room.</p>
+            </div>
+
+            <div class="bg-white overflow-hidden shadow-sm rounded-lg p-6 space-y-3">
+                <h3 class="text-lg font-semibold text-gray-800">🌸 Seasons</h3>
+                <p>The year cycles through spring, summer, fall, and winter (7 days each). Crops have a favored season (🌟 shown when planting) that earns a +10% yield bonus when harvested — but nothing is ever locked out by season.</p>
             </div>
 
             <div class="bg-white overflow-hidden shadow-sm rounded-lg p-6 space-y-3">
@@ -39,8 +44,13 @@
             </div>
 
             <div class="bg-white overflow-hidden shadow-sm rounded-lg p-6 space-y-3">
-                <h3 class="text-lg font-semibold text-gray-800">🎯 Daily Goals</h3>
-                <p>Each day brings a random objective (harvest 3x, earn $50, feed 2 animals, or plant 2 seeds). Complete it before ending the day for a cash + XP bonus.</p>
+                <h3 class="text-lg font-semibold text-gray-800">🎯 Daily &amp; Weekly Goals</h3>
+                <p>Each day brings a random objective (harvest 3x, earn $50, feed 2 animals, or plant 2 seeds) — complete it before ending the day for a cash + XP bonus. A bigger weekly challenge runs alongside it, paying out on the last day of each 7-day week.</p>
+            </div>
+
+            <div class="bg-white overflow-hidden shadow-sm rounded-lg p-6 space-y-3">
+                <h3 class="text-lg font-semibold text-gray-800">💰 Wealth Milestones</h3>
+                <p>Crossing $1,000 / $5,000 / $10,000 / $25,000 / $50,000 net worth pays out a one-time cash + XP bonus, tracked on the dashboard's progress bar.</p>
             </div>
 
             <div class="bg-white overflow-hidden shadow-sm rounded-lg p-6 space-y-3">
@@ -50,7 +60,7 @@
 
             <div class="bg-white overflow-hidden shadow-sm rounded-lg p-6 space-y-3">
                 <h3 class="text-lg font-semibold text-gray-800">🎲 Random Events</h3>
-                <p>Each day carries a small chance of a random event — a lucky find, a generous neighbor, storm damage, or pests. Bad luck never pushes your cash below $0.</p>
+                <p>Each day carries a small chance of a random event — a lucky find, a generous neighbor, storm damage, pests, or a visiting trader who pays a premium for one of your goods. Bad luck never pushes your cash below $0.</p>
             </div>
 
             <div class="bg-white overflow-hidden shadow-sm rounded-lg p-6 space-y-3">

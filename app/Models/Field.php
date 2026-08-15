@@ -16,6 +16,9 @@ class Field extends Model
     /** Yield bonus for a field that's had fertilizer applied this cycle. */
     public const FERTILIZER_YIELD_BONUS = 0.20;
 
+    /** Yield bonus for harvesting a crop during its favored season. */
+    public const SEASONAL_YIELD_BONUS = 0.10;
+
     protected $fillable = [
         'farm_id',
         'plot_number',
@@ -122,6 +125,24 @@ class Field extends Model
             $yieldBonus += self::FERTILIZER_YIELD_BONUS;
         }
 
+        if ($this->isInSeason()) {
+            $yieldBonus += self::SEASONAL_YIELD_BONUS;
+        }
+
         return (int) max($this->cropType->yield_amount, floor($this->cropType->yield_amount * (1 + $yieldBonus)));
+    }
+
+    /**
+     * Whether this field's crop is being harvested during its favored
+     * season. Crops with no season preference (season is null) are always
+     * considered in-season.
+     */
+    public function isInSeason(): bool
+    {
+        if (! $this->cropType || is_null($this->cropType->season)) {
+            return false;
+        }
+
+        return $this->cropType->season === $this->farm->currentSeason();
     }
 }

@@ -34,8 +34,10 @@ class CropRotationTest extends TestCase
     {
         $this->seedCatalogs();
         $user = $this->createUserWithFarm();
-        $wheat = CropType::where('key', 'wheat')->firstOrFail(); // yield 5
-        $carrot = CropType::where('key', 'carrot')->firstOrFail(); // yield 4
+        $wheat = CropType::where('key', 'wheat')->firstOrFail(); // yield 5, no season
+        // corn (yield 4) is a summer crop, so it stays out of season here and
+        // this test can isolate the rotation bonus alone.
+        $corn = CropType::where('key', 'corn')->firstOrFail();
         $field = $user->farm->fields->first();
 
         $this->actingAs($user)->post("/fields/{$field->id}/plant", ['crop_type_id' => $wheat->id]);
@@ -43,9 +45,10 @@ class CropRotationTest extends TestCase
         $this->actingAs($user)->post('/turn/end');
         $this->actingAs($user)->post("/fields/{$field->id}/harvest");
 
-        $this->actingAs($user)->post("/fields/{$field->id}/plant", ['crop_type_id' => $carrot->id]);
+        $this->actingAs($user)->post("/fields/{$field->id}/plant", ['crop_type_id' => $corn->id]);
 
         $this->assertTrue($field->fresh()->isRotated());
+        $this->assertFalse($field->fresh()->isInSeason());
         // 4 * 1.15 = 4.6 -> floor -> 4 (no visible change at this yield,
         // but confirm the bonus is actually applied to the calculation).
         $this->assertEqualsWithDelta(4.6, 4 * (1 + \App\Models\Field::ROTATION_YIELD_BONUS), 0.001);
@@ -60,14 +63,14 @@ class CropRotationTest extends TestCase
         $this->actingAs($user)->post('/machinery/buy', ['machinery_type_id' => $irrigation->id]);
 
         $wheat = CropType::where('key', 'wheat')->firstOrFail();
-        $carrot = CropType::where('key', 'carrot')->firstOrFail(); // yield 4
+        $corn = CropType::where('key', 'corn')->firstOrFail(); // yield 4, summer (out of season here)
         $field = $user->farm->fresh()->fields->first();
 
         $this->actingAs($user)->post("/fields/{$field->id}/plant", ['crop_type_id' => $wheat->id]);
         $this->actingAs($user)->post('/turn/end');
         $this->actingAs($user)->post('/turn/end');
         $this->actingAs($user)->post("/fields/{$field->id}/harvest");
-        $this->actingAs($user)->post("/fields/{$field->id}/plant", ['crop_type_id' => $carrot->id]);
+        $this->actingAs($user)->post("/fields/{$field->id}/plant", ['crop_type_id' => $corn->id]);
 
         // 4 * (1 + 0.25 + 0.15) = 5.6 -> floor -> 5
         $this->assertSame(5, $field->fresh()->harvestYield());

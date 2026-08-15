@@ -16,6 +16,7 @@ class Animal extends Model
         'nickname',
         'fed_on_day',
         'last_produced_day',
+        'insured_until_day',
         'purchased_on_day',
     ];
 
@@ -47,5 +48,10 @@ class Animal extends Model
         $daysSinceLastProduce = $this->farm->current_day - $this->last_produced_day;
 
         return $daysSinceLastProduce >= $this->animalType->produce_interval_days;
+    }
+
+    public function isInsured(): bool
+    {
+        return ! is_null($this->insured_until_day) && $this->insured_until_day >= $this->farm->current_day;
     }
 }

@@ -66,4 +66,13 @@ class AnimalController extends Controller
 
         return back()->with('status', 'Animal renamed.');
     }
+
+    public function insure(Request $request, Animal $animal, FarmService $farmService): RedirectResponse
+    {
+        $farm = $request->user()->farm;
+
+        $farmService->insureAnimal($farm, $animal);
+
+        return back()->with('status', "Insured {$animal->animalType->name}.");
+    }
 }
