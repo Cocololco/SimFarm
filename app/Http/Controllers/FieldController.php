@@ -42,4 +42,15 @@ class FieldController extends Controller
 
         return back()->with('status', 'Bought a new field.');
     }
+
+    public function harvestAll(Request $request, FarmService $farmService): RedirectResponse
+    {
+        $farm = $request->user()->farm;
+
+        $count = $farmService->harvestAllReady($farm);
+
+        $message = $count > 0 ? "Harvested {$count} field(s)." : 'Nothing was ready to harvest.';
+
+        return back()->with('status', $message);
+    }
 }

@@ -32,10 +32,12 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::get('/dashboard', [FarmController::class, 'show'])->name('dashboard');
 
     Route::post('/fields/buy', [FieldController::class, 'buy'])->name('fields.buy');
+    Route::post('/fields/harvest-all', [FieldController::class, 'harvestAll'])->name('fields.harvest-all');
     Route::post('/fields/{field}/plant', [FieldController::class, 'plant'])->name('fields.plant');
     Route::post('/fields/{field}/harvest', [FieldController::class, 'harvest'])->name('fields.harvest');
 
     Route::post('/animals/buy', [AnimalController::class, 'store'])->name('animals.buy');
+    Route::post('/animals/feed-all', [AnimalController::class, 'feedAll'])->name('animals.feed-all');
     Route::post('/animals/{animal}/feed', [AnimalController::class, 'feed'])->name('animals.feed');
     Route::delete('/animals/{animal}', [AnimalController::class, 'destroy'])->name('animals.sell');
 

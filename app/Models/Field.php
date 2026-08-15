@@ -10,10 +10,14 @@ class Field extends Model
 {
     use HasFactory;
 
+    /** Yield bonus for planting a different crop than grew here last (crop rotation). */
+    public const ROTATION_YIELD_BONUS = 0.15;
+
     protected $fillable = [
         'farm_id',
         'plot_number',
         'crop_type_id',
+        'previous_crop_type_id',
         'planted_on_day',
     ];
 
@@ -25,6 +29,21 @@ class Field extends Model
     public function cropType(): BelongsTo
     {
         return $this->belongsTo(CropType::class);
+    }
+
+    public function previousCropType(): BelongsTo
+    {
+        return $this->belongsTo(CropType::class, 'previous_crop_type_id');
+    }
+
+    /**
+     * Whether the currently planted crop differs from whatever grew here
+     * last time — crop rotation earns a yield bonus.
+     */
+    public function isRotated(): bool
+    {
+        return ! is_null($this->previous_crop_type_id)
+            && $this->previous_crop_type_id !== $this->crop_type_id;
     }
 
     public function isEmpty(): bool
@@ -75,7 +94,8 @@ class Field extends Model
     }
 
     /**
-     * Units harvested, after machinery yield-boost bonuses are applied.
+     * Units harvested, after machinery yield-boost and crop-rotation
+     * bonuses are applied (they stack additively).
      */
     public function harvestYield(): int
     {
@@ -84,6 +104,10 @@ class Field extends Model
         }
 
         $yieldBonus = $this->farm->machineryEffectValue('yield_boost');
+
+        if ($this->isRotated()) {
+            $yieldBonus += self::ROTATION_YIELD_BONUS;
+        }
 
         return (int) max($this->cropType->yield_amount, floor($this->cropType->yield_amount * (1 + $yieldBonus)));
     }

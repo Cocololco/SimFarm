@@ -42,4 +42,15 @@ class AnimalController extends Controller
 
         return back()->with('status', "Sold {$name}.");
     }
+
+    public function feedAll(Request $request, FarmService $farmService): RedirectResponse
+    {
+        $farm = $request->user()->farm;
+
+        $count = $farmService->feedAllHungry($farm);
+
+        $message = $count > 0 ? "Fed {$count} animal(s)." : 'No animals needed feeding (or you can\'t afford it).';
+
+        return back()->with('status', $message);
+    }
 }

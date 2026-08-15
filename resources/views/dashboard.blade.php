@@ -50,9 +50,35 @@
                 </div>
             @endif
 
+            {{-- Today's Goal --}}
+            @php($quest = $questProgress['quest'])
+            <div class="bg-white overflow-hidden shadow-sm rounded-lg p-6 border-l-4 {{ $questProgress['completed'] ? 'border-green-400' : 'border-indigo-300' }}">
+                <div class="flex items-center justify-between flex-wrap gap-2">
+                    <div>
+                        <h3 class="text-sm font-semibold text-gray-500 uppercase tracking-wide">🎯 Today's Goal</h3>
+                        <p class="text-base text-gray-800">{{ $quest['description'] }}</p>
+                    </div>
+                    <div class="text-right">
+                        <p class="text-sm font-medium {{ $questProgress['completed'] ? 'text-green-600' : 'text-gray-600' }}">
+                            {{ min($questProgress['progress'], $quest['goal']) }} / {{ $quest['goal'] }}
+                            {{ $questProgress['completed'] ? '✅' : '' }}
+                        </p>
+                        <p class="text-xs text-gray-400">Reward: ${{ $quest['reward_cash'] }} + {{ $quest['reward_xp'] }} XP at End Day</p>
+                    </div>
+                </div>
+            </div>
+
             {{-- Fields --}}
             <div class="bg-white overflow-hidden shadow-sm rounded-lg p-6">
-                <h3 class="text-lg font-semibold text-gray-800 mb-4">🌱 Fields</h3>
+                <div class="flex items-center justify-between mb-4">
+                    <h3 class="text-lg font-semibold text-gray-800">🌱 Fields</h3>
+                    @if ($farm->fields->contains(fn ($f) => $f->isReady()))
+                        <form method="POST" action="{{ route('fields.harvest-all') }}">
+                            @csrf
+                            <x-secondary-button type="submit" class="text-xs">Harvest All</x-secondary-button>
+                        </form>
+                    @endif
+                </div>
                 <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
                     @foreach ($farm->fields as $field)
                         <div class="border rounded-lg p-4 flex flex-col justify-between {{ $field->isReady() ? 'border-green-400 bg-green-50' : 'border-gray-200' }}">
@@ -73,7 +99,12 @@
                                 </form>
                             @elseif ($field->isReady())
                                 <div class="text-3xl mb-2">{{ $field->cropType->icon }}</div>
-                                <p class="text-sm font-medium text-green-700 mb-3">{{ $field->cropType->name }} ready! (+{{ $field->harvestYield() }})</p>
+                                <p class="text-sm font-medium text-green-700 mb-1">{{ $field->cropType->name }} ready! (+{{ $field->harvestYield() }})</p>
+                                @if ($field->isRotated())
+                                    <p class="text-xs text-emerald-600 mb-2">🔄 Crop rotation bonus!</p>
+                                @else
+                                    <div class="mb-2"></div>
+                                @endif
                                 <form method="POST" action="{{ route('fields.harvest', $field) }}">
                                     @csrf
                                     <x-primary-button type="submit" class="w-full justify-center">Harvest</x-primary-button>
@@ -111,7 +142,15 @@
 
             {{-- Animals --}}
             <div class="bg-white overflow-hidden shadow-sm rounded-lg p-6">
-                <h3 class="text-lg font-semibold text-gray-800 mb-4">🐮 Animals</h3>
+                <div class="flex items-center justify-between mb-4">
+                    <h3 class="text-lg font-semibold text-gray-800">🐮 Animals <span class="text-xs font-normal text-gray-400">({{ $farm->animals->count() }}/{{ $farm->animalCapacity() }})</span></h3>
+                    @if ($farm->animals->contains(fn ($a) => ! $a->isFedToday()))
+                        <form method="POST" action="{{ route('animals.feed-all') }}">
+                            @csrf
+                            <x-secondary-button type="submit" class="text-xs">Feed All</x-secondary-button>
+                        </form>
+                    @endif
+                </div>
 
                 <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
                     @forelse ($farm->animals as $animal)
@@ -150,6 +189,9 @@
                 </div>
 
                 <h4 class="text-sm font-semibold text-gray-600 mb-2">Buy an animal</h4>
+                @if ($farm->animals->count() >= $farm->animalCapacity())
+                    <p class="text-sm text-amber-600 mb-3">🏚️ Your barn is full — sell an animal or buy a Barn Expansion to make room.</p>
+                @endif
                 <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
                     @foreach ($animalTypes->where('required_level', '<=', $farm->level) as $animalType)
                         <div class="border rounded-lg p-4">

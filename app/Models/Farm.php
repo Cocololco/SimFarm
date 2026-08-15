@@ -18,6 +18,9 @@ class Farm extends Model
     /** Inventory slots available before any storage-boosting machinery. */
     public const BASE_STORAGE_CAPACITY = 50;
 
+    /** Animals a farm can own before any barn-expanding machinery. */
+    public const BASE_ANIMAL_CAPACITY = 6;
+
     protected $fillable = [
         'user_id',
         'name',
@@ -148,6 +151,20 @@ class Farm extends Model
     public function inventoryUsed(): int
     {
         return (int) $this->inventoryItems()->sum('quantity');
+    }
+
+    /**
+     * Animals allowed: a base allowance plus any flat animal_capacity_boost
+     * bonuses from owned machinery (e.g. a barn expansion).
+     */
+    public function animalCapacity(): int
+    {
+        return self::BASE_ANIMAL_CAPACITY + (int) $this->machineryEffectValue('animal_capacity_boost');
+    }
+
+    public function animalsOwned(): int
+    {
+        return (int) $this->animals()->count();
     }
 
     public function activeLoan(): ?Loan

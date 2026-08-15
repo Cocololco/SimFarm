@@ -39,6 +39,7 @@ class FarmController extends Controller
             'nextFieldCost' => $farmService->fieldCost($farm),
             'recentTransactions' => $farm->transactions()->limit(8)->get(),
             'maxLoanAmount' => FarmService::MAX_LOAN_AMOUNT,
+            'questProgress' => $farmService->questProgress($farm),
         ]);
     }
 }

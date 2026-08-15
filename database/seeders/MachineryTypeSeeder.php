@@ -31,6 +31,11 @@ class MachineryTypeSeeder extends Seeder
                 'price' => 250, 'effect_type' => 'storage_boost', 'effect_value' => 100,
             ],
             [
+                'key' => 'barn_expansion', 'required_level' => 2, 'name' => 'Barn Expansion', 'icon' => '🐓',
+                'description' => 'Room for 6 more animals.',
+                'price' => 300, 'effect_type' => 'animal_capacity_boost', 'effect_value' => 6,
+            ],
+            [
                 'key' => 'greenhouse', 'required_level' => 3, 'name' => 'Greenhouse', 'icon' => '🏡',
                 'description' => 'Speeds up crop growth by 35%.',
                 'price' => 700, 'effect_type' => 'growth_speed', 'effect_value' => 0.35,

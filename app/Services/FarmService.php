@@ -41,6 +41,17 @@ class FarmService
     /** Out of 100 weight points, the rest of the time nothing happens. */
     private const RANDOM_EVENT_TOTAL_WEIGHT = 100;
 
+    /**
+     * One daily quest is deterministically assigned per farm per day (see
+     * todaysQuest()) and checked/rewarded automatically at end of day.
+     */
+    private const DAILY_QUESTS = [
+        ['key' => 'harvest_3', 'type' => 'harvest', 'goal' => 3, 'description' => 'Harvest crops 3 times', 'reward_cash' => 30, 'reward_xp' => 15],
+        ['key' => 'earn_50', 'type' => 'sell_amount', 'goal' => 50, 'description' => 'Earn $50 selling goods', 'reward_cash' => 25, 'reward_xp' => 10],
+        ['key' => 'feed_2', 'type' => 'feed', 'goal' => 2, 'description' => 'Feed 2 animals', 'reward_cash' => 20, 'reward_xp' => 10],
+        ['key' => 'plant_2', 'type' => 'plant', 'goal' => 2, 'description' => 'Plant 2 seeds', 'reward_cash' => 15, 'reward_xp' => 10],
+    ];
+
     public function plant(Farm $farm, Field $field, CropType $cropType): void
     {
         if ($field->farm_id !== $farm->id) {
@@ -77,11 +88,13 @@ class FarmService
         }
 
         $cropType = $field->cropType;
+        $rotated = $field->isRotated();
         $amount = $field->harvestYield();
 
         $added = $this->addToInventory($farm, $cropType->key, $amount);
 
-        $this->logTransaction($farm, 'harvest', "Harvested {$added}x {$cropType->name}.", null);
+        $rotationNote = $rotated ? ' (+crop rotation bonus)' : '';
+        $this->logTransaction($farm, 'harvest', "Harvested {$added}x {$cropType->name}.{$rotationNote}", null);
 
         if ($added < $amount) {
             $wasted = $amount - $added;
@@ -92,8 +105,26 @@ class FarmService
 
         $field->update([
             'crop_type_id' => null,
+            'previous_crop_type_id' => $cropType->id,
             'planted_on_day' => null,
         ]);
+    }
+
+    /**
+     * Harvests every ready field. Returns how many were harvested.
+     */
+    public function harvestAllReady(Farm $farm): int
+    {
+        $count = 0;
+
+        foreach ($farm->fields()->with('cropType')->get() as $field) {
+            if ($field->isReady()) {
+                $this->harvest($farm, $field);
+                $count++;
+            }
+        }
+
+        return $count;
     }
 
     public function fieldCost(Farm $farm): float
@@ -121,6 +152,10 @@ class FarmService
     public function buyAnimal(Farm $farm, AnimalType $animalType): Animal
     {
         $this->assertLevel($farm, $animalType->required_level, 'animal_type', $animalType->name);
+
+        if ($farm->animalsOwned() >= $farm->animalCapacity()) {
+            throw ValidationException::withMessages(['animal_type' => 'Your barn is full — expand it or sell an animal first.']);
+        }
 
         if (! $farm->canAfford((float) $animalType->buy_price)) {
             throw ValidationException::withMessages(['cash' => 'Not enough cash to buy that animal.']);
@@ -164,6 +199,30 @@ class FarmService
         $farm->addXp(1);
 
         $animal->update(['fed_on_day' => $farm->current_day]);
+    }
+
+    /**
+     * Feeds every unfed animal the farm can afford to, cheapest first.
+     * Returns how many were fed.
+     */
+    public function feedAllHungry(Farm $farm): int
+    {
+        $count = 0;
+
+        $animals = $farm->animals()->with('animalType')->get()
+            ->reject(fn (Animal $a) => $a->isFedToday())
+            ->sortBy(fn (Animal $a) => $this->feedCost($farm, $a->animalType));
+
+        foreach ($animals as $animal) {
+            if (! $farm->canAfford($this->feedCost($farm, $animal->animalType))) {
+                continue;
+            }
+
+            $this->feedAnimal($farm, $animal);
+            $count++;
+        }
+
+        return $count;
     }
 
     public function sellAnimal(Farm $farm, Animal $animal): void
@@ -314,8 +373,63 @@ class FarmService
         }
 
         $this->rollRandomEvent($farm);
+        $this->rewardQuestIfComplete($farm);
 
         $farm->increment('current_day');
+    }
+
+    /**
+     * The quest assigned to a farm for a given day, deterministic so it
+     * doesn't need its own storage — same farm + same day always yields
+     * the same quest.
+     */
+    public function todaysQuest(Farm $farm): array
+    {
+        $index = ($farm->id + $farm->current_day) % count(self::DAILY_QUESTS);
+
+        return self::DAILY_QUESTS[$index];
+    }
+
+    /**
+     * @return array{quest: array, progress: float, completed: bool}
+     */
+    public function questProgress(Farm $farm): array
+    {
+        $quest = $this->todaysQuest($farm);
+        $today = $farm->transactions()->where('day', $farm->current_day);
+
+        $progress = match ($quest['type']) {
+            'harvest' => (clone $today)->where('type', 'harvest')->count(),
+            'sell_amount' => (float) (clone $today)->where('type', 'sell')->sum('amount'),
+            'feed' => (clone $today)->where('type', 'feed')->count(),
+            'plant' => (clone $today)->where('type', 'plant')->count(),
+            default => 0,
+        };
+
+        return [
+            'quest' => $quest,
+            'progress' => $progress,
+            'completed' => $progress >= $quest['goal'],
+        ];
+    }
+
+    private function rewardQuestIfComplete(Farm $farm): void
+    {
+        $result = $this->questProgress($farm);
+
+        if (! $result['completed']) {
+            return;
+        }
+
+        $quest = $result['quest'];
+        $farm->addCash($quest['reward_cash']);
+        $farm->addXp($quest['reward_xp']);
+        $this->logTransaction(
+            $farm,
+            'quest_reward',
+            "Daily goal complete: {$quest['description']}!",
+            (float) $quest['reward_cash']
+        );
     }
 
     private function rollRandomEvent(Farm $farm): void
