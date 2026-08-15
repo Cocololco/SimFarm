@@ -3,8 +3,10 @@
 use App\Http\Controllers\ActivityController;
 use App\Http\Controllers\AnimalController;
 use App\Http\Controllers\FarmController;
+use App\Http\Controllers\FarmProfileController;
 use App\Http\Controllers\FarmSettingsController;
 use App\Http\Controllers\FieldController;
+use App\Http\Controllers\GiftController;
 use App\Http\Controllers\LeaderboardController;
 use App\Http\Controllers\LoanController;
 use App\Http\Controllers\MachineryController;
@@ -50,8 +52,15 @@ Route::middleware(['auth', 'verified'])->group(function () {
 
     Route::post('/turn/end', [TurnController::class, 'end'])->name('turn.end');
 
+    Route::post('/gifts', [GiftController::class, 'store'])->name('gifts.store');
+
     Route::get('/activity', [ActivityController::class, 'index'])->name('activity.index');
     Route::get('/leaderboard', [LeaderboardController::class, 'index'])->name('leaderboard.index');
+    Route::get('/farms/{farm}', [FarmProfileController::class, 'show'])->name('farms.show');
+
+    Route::get('/help', function () {
+        return view('help');
+    })->name('help');
 
     Route::get('/settings/farm', [FarmSettingsController::class, 'edit'])->name('farm-settings.edit');
     Route::patch('/settings/farm', [FarmSettingsController::class, 'update'])->name('farm-settings.update');

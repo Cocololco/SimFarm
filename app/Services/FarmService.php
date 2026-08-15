@@ -329,6 +329,27 @@ class FarmService
         $this->logTransaction($farm, 'loan_repaid', 'Repaid $'.number_format($amount, 2).' of your loan.', -$amount);
     }
 
+    public function giftCash(Farm $sender, Farm $recipient, float $amount): void
+    {
+        if ($sender->id === $recipient->id) {
+            throw ValidationException::withMessages(['recipient' => 'You can\'t gift cash to yourself.']);
+        }
+
+        if ($amount < 0.01) {
+            throw ValidationException::withMessages(['amount' => 'Invalid gift amount.']);
+        }
+
+        if (! $sender->canAfford($amount)) {
+            throw ValidationException::withMessages(['cash' => 'Not enough cash to send that much.']);
+        }
+
+        $sender->spendCash($amount);
+        $recipient->addCash($amount);
+
+        $this->logTransaction($sender, 'gift_sent', "Sent a gift of \$".number_format($amount, 2)." to {$recipient->user->name}.", -$amount);
+        $this->logTransaction($recipient, 'gift_received', "Received a gift of \$".number_format($amount, 2)." from {$sender->user->name}.", $amount);
+    }
+
     /**
      * Advance the farm by one day: fed animals that are due produce goods,
      * neglected animals may be lost, loan interest accrues, a random event

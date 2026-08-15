@@ -299,6 +299,22 @@
                         <x-secondary-button type="submit">Take Loan</x-secondary-button>
                     </form>
                 @endif
+
+                <hr class="my-4">
+
+                <h4 class="text-sm font-semibold text-gray-600 mb-2">🎁 Gift cash to another farmer</h4>
+                <form method="POST" action="{{ route('gifts.store') }}" class="flex flex-wrap items-end gap-2">
+                    @csrf
+                    <div>
+                        <label class="block text-xs text-gray-500 mb-1">Recipient email</label>
+                        <input type="email" name="recipient_email" class="rounded-md border-gray-300 text-sm" required>
+                    </div>
+                    <div>
+                        <label class="block text-xs text-gray-500 mb-1">Amount</label>
+                        <input type="number" name="amount" step="0.01" min="0.01" class="rounded-md border-gray-300 text-sm w-28" required>
+                    </div>
+                    <x-secondary-button type="submit">Send Gift</x-secondary-button>
+                </form>
             </div>
 
             {{-- Machinery --}}

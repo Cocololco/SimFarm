@@ -28,7 +28,9 @@
                                         {{ $index === 0 ? '🥇' : ($index === 1 ? '🥈' : ($index === 2 ? '🥉' : $index + 1)) }}
                                     </td>
                                     <td class="py-2 pr-4">{{ $row['farm']->user->name }}</td>
-                                    <td class="py-2 pr-4 text-gray-500">{{ $row['farm']->name }}</td>
+                                    <td class="py-2 pr-4 text-gray-500">
+                                        <a href="{{ route('farms.show', $row['farm']) }}" class="hover:underline hover:text-indigo-600">{{ $row['farm']->name }}</a>
+                                    </td>
                                     <td class="py-2 pr-4">⭐ {{ $row['farm']->level }}</td>
                                     <td class="py-2 pr-4 font-medium">${{ number_format($row['net_worth'], 2) }}</td>
                                 </tr>
