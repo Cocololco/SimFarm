@@ -29,6 +29,11 @@ class FarmService
 
     public const FERTILIZER_PRICE = 15.0;
 
+    public const PESTICIDE_PRICE = 12.0;
+
+    /** With a Compost Bin, every N wasted (storage-full) crop units become 1 fertilizer. */
+    public const COMPOST_WASTE_PER_FERTILIZER = 3;
+
     /**
      * Random daily events rolled at the end of each day: [type, weight,
      * description, cash delta (positive or negative)].
@@ -133,6 +138,16 @@ class FarmService
 
         if ($added < $amount) {
             $wasted = $amount - $added;
+
+            if ($farm->hasEffect('compost')) {
+                $compostBonus = intdiv($wasted, self::COMPOST_WASTE_PER_FERTILIZER);
+
+                if ($compostBonus > 0) {
+                    $farm->increment('fertilizer_count', $compostBonus);
+                    $this->logTransaction($farm, 'compost', "Composted spoiled {$cropType->name} into {$compostBonus}x fertilizer.", null);
+                }
+            }
+
             $this->logTransaction($farm, 'storage_full', "Storage was full — {$wasted}x {$cropType->name} spoiled.", null);
         }
 
@@ -184,6 +199,28 @@ class FarmService
         $farm->decrement('fertilizer_count');
         $field->update(['fertilized' => true]);
         $this->logTransaction($farm, 'apply_fertilizer', "Fertilized field #{$field->plot_number}.", null);
+    }
+
+    /**
+     * Pesticide isn't applied to a specific field — a farm holding stock
+     * automatically consumes one dose to block the next pest_trouble event
+     * at end of day (see rollRandomEvent()).
+     */
+    public function buyPesticide(Farm $farm, int $quantity): void
+    {
+        if ($quantity < 1) {
+            throw ValidationException::withMessages(['quantity' => 'Invalid quantity.']);
+        }
+
+        $cost = self::PESTICIDE_PRICE * $quantity;
+
+        if (! $farm->canAfford($cost)) {
+            throw ValidationException::withMessages(['cash' => 'Not enough cash to buy that much pesticide.']);
+        }
+
+        $farm->spendCash($cost);
+        $farm->increment('pesticide_count', $quantity);
+        $this->logTransaction($farm, 'buy_pesticide', "Bought {$quantity}x pesticide.", -$cost);
     }
 
     /**
@@ -549,6 +586,19 @@ class FarmService
         $this->driftMarketMultiplier($farm);
 
         $farm->increment('current_day');
+
+        // Auto-feed/auto-harvest run for the day that's now starting, after
+        // the increment — that way a Farmhand-fed animal already reads as
+        // "fed today" and an Auto-Harvester-cleared field already reads as
+        // empty the moment this call returns, matching what a manual
+        // feed/harvest would show at this same point in the timeline.
+        if ($farm->hasEffect('auto_feed')) {
+            $this->feedAllHungry($farm);
+        }
+
+        if ($farm->hasEffect('auto_harvest')) {
+            $this->harvestAllReady($farm);
+        }
     }
 
     /**
@@ -633,6 +683,13 @@ class FarmService
 
             if ($roll > $cumulative) {
                 continue;
+            }
+
+            if ($event['type'] === 'pest_trouble' && $farm->pesticide_count > 0) {
+                $farm->decrement('pesticide_count');
+                $this->logTransaction($farm, 'pesticide_blocked', 'Your pesticide stock kept pests away today.', null);
+
+                return;
             }
 
             $amount = (float) $event['amount'];

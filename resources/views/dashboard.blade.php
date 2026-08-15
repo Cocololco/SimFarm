@@ -88,11 +88,16 @@
                 <div class="flex items-center justify-between mb-4 flex-wrap gap-2">
                     <h3 class="text-lg font-semibold text-gray-800">🌱 Fields</h3>
                     <div class="flex items-center gap-2">
-                        <span class="text-xs text-gray-500">🧪 {{ $farm->fertilizer_count }} fertilizer</span>
+                        <span class="text-xs text-gray-500">🧪 {{ $farm->fertilizer_count }} fertilizer · 🐛 {{ $farm->pesticide_count }} pesticide</span>
                         <form method="POST" action="{{ route('fertilizer.buy') }}">
                             @csrf
                             <input type="hidden" name="quantity" value="1">
                             <x-secondary-button type="submit" class="text-xs">Buy Fertilizer (${{ number_format(\App\Services\FarmService::FERTILIZER_PRICE, 2) }})</x-secondary-button>
+                        </form>
+                        <form method="POST" action="{{ route('pesticide.buy') }}">
+                            @csrf
+                            <input type="hidden" name="quantity" value="1">
+                            <x-secondary-button type="submit" class="text-xs">Buy Pesticide (${{ number_format(\App\Services\FarmService::PESTICIDE_PRICE, 2) }})</x-secondary-button>
                         </form>
                         @if ($farm->fields->contains(fn ($f) => $f->isReady()))
                             <form method="POST" action="{{ route('fields.harvest-all') }}">

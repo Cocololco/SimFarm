@@ -30,6 +30,7 @@ class Farm extends Model
         'xp',
         'market_multiplier',
         'fertilizer_count',
+        'pesticide_count',
     ];
 
     protected $casts = [

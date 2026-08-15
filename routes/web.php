@@ -13,6 +13,7 @@ use App\Http\Controllers\LeaderboardController;
 use App\Http\Controllers\LoanController;
 use App\Http\Controllers\MachineryController;
 use App\Http\Controllers\MarketController;
+use App\Http\Controllers\PesticideController;
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\StatsController;
 use App\Http\Controllers\TurnController;
@@ -45,6 +46,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::post('/fields/{field}/rename', [FieldController::class, 'rename'])->name('fields.rename');
 
     Route::post('/fertilizer/buy', [FertilizerController::class, 'store'])->name('fertilizer.buy');
+    Route::post('/pesticide/buy', [PesticideController::class, 'store'])->name('pesticide.buy');
 
     Route::post('/animals/buy', [AnimalController::class, 'store'])->name('animals.buy');
     Route::post('/animals/feed-all', [AnimalController::class, 'feedAll'])->name('animals.feed-all');

@@ -25,7 +25,12 @@
 
             <div class="bg-white overflow-hidden shadow-sm rounded-lg p-6 space-y-3">
                 <h3 class="text-lg font-semibold text-gray-800">🚜 Machinery</h3>
-                <p>Machinery gives permanent bonuses: faster growth, bigger harvests, cheaper feed, or more storage/barn space. Some machines unlock at higher farm levels.</p>
+                <p>Machinery gives permanent bonuses: faster growth, bigger harvests, cheaper feed, or more storage/barn space. A Farmhand auto-feeds hungry animals and an Auto-Harvester Drone auto-harvests ready fields at the end of every day. Some machines unlock at higher farm levels.</p>
+            </div>
+
+            <div class="bg-white overflow-hidden shadow-sm rounded-lg p-6 space-y-3">
+                <h3 class="text-lg font-semibold text-gray-800">🧪 Fertilizer, Pesticide &amp; Compost</h3>
+                <p>Fertilizer applied to a growing field adds +20% yield that cycle. Pesticide sits in reserve and silently blocks the next pest event. A Compost Bin turns crops wasted to full storage into free fertilizer instead of losing them outright.</p>
             </div>
 
             <div class="bg-white overflow-hidden shadow-sm rounded-lg p-6 space-y-3">

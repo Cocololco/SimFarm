@@ -46,6 +46,12 @@ class AnimalTypeSeeder extends Seeder
                 'produce_key' => 'alpaca_wool', 'produce_name' => 'Alpaca Wool', 'produce_icon' => '🧵',
                 'produce_sell_price' => 20, 'produce_interval_days' => 4,
             ],
+            [
+                'key' => 'ostrich', 'required_level' => 6, 'name' => 'Ostrich', 'icon' => '🦤',
+                'buy_price' => 500, 'feed_cost' => 10, 'sell_price' => 250,
+                'produce_key' => 'ostrich_egg', 'produce_name' => 'Ostrich Egg', 'produce_icon' => '🥚',
+                'produce_sell_price' => 25, 'produce_interval_days' => 3,
+            ],
         ];
 
         foreach ($animals as $animal) {
