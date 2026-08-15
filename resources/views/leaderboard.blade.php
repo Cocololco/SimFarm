@@ -10,6 +10,24 @@
             <div class="bg-white overflow-hidden shadow-sm rounded-lg p-6">
                 <p class="text-sm text-gray-500 mb-4">Ranked by net worth — cash plus the resale value of animals, machinery, and inventory, minus any debt.</p>
 
+                <form method="GET" action="{{ route('leaderboard.index') }}" class="flex flex-wrap items-end gap-2 mb-4">
+                    <div>
+                        <label class="block text-xs text-gray-500 mb-1">Search</label>
+                        <input type="text" name="search" value="{{ $search }}" placeholder="Farmer or farm name…" class="rounded-md border-gray-300 text-sm">
+                    </div>
+                    <div>
+                        <label class="block text-xs text-gray-500 mb-1">Sort by</label>
+                        <select name="sort" class="rounded-md border-gray-300 text-sm">
+                            <option value="net_worth" @selected($sort === 'net_worth')>Net worth</option>
+                            <option value="level" @selected($sort === 'level')>Level</option>
+                        </select>
+                    </div>
+                    <x-secondary-button type="submit">Apply</x-secondary-button>
+                    @if ($search !== '' || $sort !== 'net_worth')
+                        <a href="{{ route('leaderboard.index') }}" class="text-sm text-gray-500 hover:underline">Reset</a>
+                    @endif
+                </form>
+
                 <div class="overflow-x-auto">
                     <table class="min-w-full text-sm">
                         <thead>
@@ -37,8 +55,15 @@
                             @endforeach
                         </tbody>
                     </table>
+                    @if ($rankings->isEmpty())
+                        <p class="text-sm text-gray-500 py-4">No farms match "{{ $search }}".</p>
+                    @endif
                 </div>
             </div>
+
+            <p class="mt-4 text-sm text-gray-500">
+                Curious about the whole community? Check the <a href="{{ route('stats.index') }}" class="text-indigo-600 hover:underline">platform stats</a>.
+            </p>
         </div>
     </div>
 </x-app-layout>

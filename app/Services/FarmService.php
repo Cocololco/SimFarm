@@ -87,6 +87,26 @@ class FarmService
         ]);
     }
 
+    /**
+     * Plants the given crop in every empty field the farm can afford it
+     * for, stopping once cash runs out. Returns how many fields were planted.
+     */
+    public function plantAll(Farm $farm, CropType $cropType): int
+    {
+        $count = 0;
+
+        foreach ($farm->fields()->get() as $field) {
+            if (! $field->isEmpty() || ! $farm->canAfford((float) $cropType->seed_price)) {
+                continue;
+            }
+
+            $this->plant($farm, $field, $cropType);
+            $count++;
+        }
+
+        return $count;
+    }
+
     public function harvest(Farm $farm, Field $field): void
     {
         if ($field->farm_id !== $farm->id) {
@@ -341,6 +361,40 @@ class FarmService
         } else {
             $item->decrement('quantity', $quantity);
         }
+    }
+
+    /**
+     * Sells every inventory item the farm owns. Returns the total earned.
+     */
+    public function sellAllInventory(Farm $farm): float
+    {
+        $total = 0.0;
+
+        foreach ($farm->inventoryItems()->get() as $item) {
+            $before = (float) $farm->cash;
+            $this->sellInventory($farm, $item, $item->quantity);
+            $total += (float) $farm->cash - $before;
+        }
+
+        return round($total, 2);
+    }
+
+    public function renameField(Farm $farm, Field $field, ?string $nickname): void
+    {
+        if ($field->farm_id !== $farm->id) {
+            throw ValidationException::withMessages(['field' => 'That field does not belong to your farm.']);
+        }
+
+        $field->update(['nickname' => $nickname ?: null]);
+    }
+
+    public function renameAnimal(Farm $farm, Animal $animal, ?string $nickname): void
+    {
+        if ($animal->farm_id !== $farm->id) {
+            throw ValidationException::withMessages(['animal' => 'That animal does not belong to your farm.']);
+        }
+
+        $animal->update(['nickname' => $nickname ?: null]);
     }
 
     public function takeLoan(Farm $farm, float $amount): Loan

@@ -62,4 +62,33 @@ class FieldController extends Controller
 
         return back()->with('status', "Fertilized field #{$field->plot_number}.");
     }
+
+    public function plantAll(Request $request, FarmService $farmService): RedirectResponse
+    {
+        $data = $request->validate([
+            'crop_type_id' => ['required', 'exists:crop_types,id'],
+        ]);
+
+        $farm = $request->user()->farm;
+        $cropType = CropType::findOrFail($data['crop_type_id']);
+
+        $count = $farmService->plantAll($farm, $cropType);
+
+        $message = $count > 0 ? "Planted {$cropType->name} in {$count} field(s)." : 'No empty fields you can afford to plant.';
+
+        return back()->with('status', $message);
+    }
+
+    public function rename(Request $request, Field $field, FarmService $farmService): RedirectResponse
+    {
+        $data = $request->validate([
+            'nickname' => ['nullable', 'string', 'max:255'],
+        ]);
+
+        $farm = $request->user()->farm;
+
+        $farmService->renameField($farm, $field, $data['nickname'] ?? null);
+
+        return back()->with('status', 'Field renamed.');
+    }
 }

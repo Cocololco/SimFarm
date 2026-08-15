@@ -53,4 +53,17 @@ class AnimalController extends Controller
 
         return back()->with('status', $message);
     }
+
+    public function rename(Request $request, Animal $animal, FarmService $farmService): RedirectResponse
+    {
+        $data = $request->validate([
+            'nickname' => ['nullable', 'string', 'max:255'],
+        ]);
+
+        $farm = $request->user()->farm;
+
+        $farmService->renameAnimal($farm, $animal, $data['nickname'] ?? null);
+
+        return back()->with('status', 'Animal renamed.');
+    }
 }

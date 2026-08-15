@@ -15,9 +15,6 @@
                     <x-nav-link :href="route('dashboard')" :active="request()->routeIs('dashboard')">
                         {{ __('Dashboard') }}
                     </x-nav-link>
-                    <x-nav-link :href="route('activity.index')" :active="request()->routeIs('activity.index')">
-                        {{ __('Activity') }}
-                    </x-nav-link>
                     <x-nav-link :href="route('leaderboard.index')" :active="request()->routeIs('leaderboard.index')">
                         {{ __('Leaderboard') }}
                     </x-nav-link>
@@ -43,12 +40,23 @@
                     </x-slot>
 
                     <x-slot name="content">
-                        <x-dropdown-link :href="route('farm-settings.edit')">
-                            {{ __('Farm Settings') }}
+                        <x-dropdown-link :href="route('activity.index')">
+                            {{ __('📜 Activity') }}
+                        </x-dropdown-link>
+                        <x-dropdown-link :href="route('alerts.index')">
+                            {{ __('🔔 Alerts') }}
+                        </x-dropdown-link>
+                        <x-dropdown-link :href="route('stats.index')">
+                            {{ __('🌍 Platform Stats') }}
                         </x-dropdown-link>
 
+                        <div class="border-t border-gray-100 my-1"></div>
+
+                        <x-dropdown-link :href="route('farm-settings.edit')">
+                            {{ __('⚙️ Farm Settings') }}
+                        </x-dropdown-link>
                         <x-dropdown-link :href="route('profile.edit')">
-                            {{ __('Profile') }}
+                            {{ __('👤 Profile') }}
                         </x-dropdown-link>
 
                         <!-- Authentication -->
@@ -83,11 +91,17 @@
             <x-responsive-nav-link :href="route('dashboard')" :active="request()->routeIs('dashboard')">
                 {{ __('Dashboard') }}
             </x-responsive-nav-link>
+            <x-responsive-nav-link :href="route('leaderboard.index')" :active="request()->routeIs('leaderboard.index')">
+                {{ __('Leaderboard') }}
+            </x-responsive-nav-link>
             <x-responsive-nav-link :href="route('activity.index')" :active="request()->routeIs('activity.index')">
                 {{ __('Activity') }}
             </x-responsive-nav-link>
-            <x-responsive-nav-link :href="route('leaderboard.index')" :active="request()->routeIs('leaderboard.index')">
-                {{ __('Leaderboard') }}
+            <x-responsive-nav-link :href="route('alerts.index')" :active="request()->routeIs('alerts.index')">
+                {{ __('Alerts') }}
+            </x-responsive-nav-link>
+            <x-responsive-nav-link :href="route('stats.index')" :active="request()->routeIs('stats.index')">
+                {{ __('Platform Stats') }}
             </x-responsive-nav-link>
             <x-responsive-nav-link :href="route('help')" :active="request()->routeIs('help')">
                 {{ __('Help') }}

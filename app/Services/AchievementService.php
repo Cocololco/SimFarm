@@ -14,6 +14,64 @@ use Illuminate\Support\Collection;
 class AchievementService
 {
     /**
+     * Each entry maps a key to a numeric progress getter + goal, so the
+     * same definitions power both unlock checks and locked-achievement
+     * progress hints in the UI.
+     *
+     * @return array<string, array{progress: callable(Farm): float, goal: float}>
+     */
+    private function definitions(): array
+    {
+        return [
+            'first_harvest' => [
+                'progress' => fn (Farm $f) => $f->transactions->where('type', 'harvest')->isNotEmpty() ? 1 : 0,
+                'goal' => 1,
+            ],
+            'first_animal' => [
+                'progress' => fn (Farm $f) => $f->transactions->where('type', 'buy_animal')->isNotEmpty() ? 1 : 0,
+                'goal' => 1,
+            ],
+            'first_machine' => [
+                'progress' => fn (Farm $f) => $f->transactions->where('type', 'buy_machinery')->isNotEmpty() ? 1 : 0,
+                'goal' => 1,
+            ],
+            'harvest_veteran' => [
+                'progress' => fn (Farm $f) => $f->transactions->where('type', 'harvest')->count(),
+                'goal' => 10,
+            ],
+            'level_5' => [
+                'progress' => fn (Farm $f) => $f->level,
+                'goal' => 5,
+            ],
+            'net_worth_5000' => [
+                'progress' => fn (Farm $f) => $f->netWorth(),
+                'goal' => 5000,
+            ],
+            'gift_giver' => [
+                'progress' => fn (Farm $f) => $f->transactions->whereIn('type', ['gift_sent', 'gift_item_sent'])->isNotEmpty() ? 1 : 0,
+                'goal' => 1,
+            ],
+            'big_spender' => [
+                'progress' => fn (Farm $f) => $f->transactions
+                    ->filter(fn ($t) => ! is_null($t->amount) && (float) $t->amount < 0)
+                    ->sum(fn ($t) => abs((float) $t->amount)),
+                'goal' => 1000,
+            ],
+            'loan_free' => [
+                'progress' => fn (Farm $f) => $f->loans->isNotEmpty() && $f->loans->contains(fn ($l) => (float) $l->balance <= 0) ? 1 : 0,
+                'goal' => 1,
+            ],
+            'green_thumb' => [
+                'progress' => fn (Farm $f) => $f->transactions
+                    ->where('type', 'harvest')
+                    ->filter(fn ($t) => str_contains($t->description, 'crop rotation'))
+                    ->count(),
+                'goal' => 5,
+            ],
+        ];
+    }
+
+    /**
      * @return Collection<int, Achievement> newly unlocked achievements
      */
     public function checkAndUnlock(Farm $farm): Collection
@@ -21,29 +79,10 @@ class AchievementService
         $farm->loadMissing(['transactions', 'achievements', 'loans']);
 
         $unlockedKeys = $farm->achievements->pluck('key');
-
-        $checks = [
-            'first_harvest' => fn () => $farm->transactions->where('type', 'harvest')->isNotEmpty(),
-            'first_animal' => fn () => $farm->transactions->where('type', 'buy_animal')->isNotEmpty(),
-            'first_machine' => fn () => $farm->transactions->where('type', 'buy_machinery')->isNotEmpty(),
-            'harvest_veteran' => fn () => $farm->transactions->where('type', 'harvest')->count() >= 10,
-            'level_5' => fn () => $farm->level >= 5,
-            'net_worth_5000' => fn () => $farm->netWorth() >= 5000,
-            'gift_giver' => fn () => $farm->transactions->whereIn('type', ['gift_sent', 'gift_item_sent'])->isNotEmpty(),
-            'big_spender' => fn () => $farm->transactions
-                ->filter(fn ($t) => ! is_null($t->amount) && (float) $t->amount < 0)
-                ->sum(fn ($t) => abs((float) $t->amount)) >= 1000,
-            'loan_free' => fn () => $farm->loans->isNotEmpty() && $farm->loans->contains(fn ($l) => (float) $l->balance <= 0),
-            'green_thumb' => fn () => $farm->transactions
-                ->where('type', 'harvest')
-                ->filter(fn ($t) => str_contains($t->description, 'crop rotation'))
-                ->count() >= 5,
-        ];
-
         $newlyUnlocked = collect();
 
-        foreach ($checks as $key => $isEarned) {
-            if ($unlockedKeys->contains($key) || ! $isEarned()) {
+        foreach ($this->definitions() as $key => $definition) {
+            if ($unlockedKeys->contains($key) || $definition['progress']($farm) < $definition['goal']) {
                 continue;
             }
 
@@ -58,5 +97,27 @@ class AchievementService
         }
 
         return $newlyUnlocked;
+    }
+
+    /**
+     * Progress toward each still-locked achievement, keyed by achievement
+     * key, for display as e.g. "6 / 10" on the locked badge.
+     *
+     * @return array<string, array{progress: float, goal: float}>
+     */
+    public function progressFor(Farm $farm): array
+    {
+        $farm->loadMissing(['transactions', 'loans']);
+
+        $progress = [];
+
+        foreach ($this->definitions() as $key => $definition) {
+            $progress[$key] = [
+                'progress' => min($definition['progress']($farm), $definition['goal']),
+                'goal' => $definition['goal'],
+            ];
+        }
+
+        return $progress;
     }
 }

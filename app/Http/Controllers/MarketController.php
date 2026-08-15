@@ -22,4 +22,15 @@ class MarketController extends Controller
 
         return back()->with('status', "Sold {$data['quantity']}x {$productName}.");
     }
+
+    public function sellAll(Request $request, FarmService $farmService): RedirectResponse
+    {
+        $farm = $request->user()->farm;
+
+        $total = $farmService->sellAllInventory($farm);
+
+        $message = $total > 0 ? 'Sold everything for $'.number_format($total, 2).'.' : 'Nothing to sell.';
+
+        return back()->with('status', $message);
+    }
 }

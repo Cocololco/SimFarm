@@ -100,12 +100,28 @@
                                 <x-secondary-button type="submit" class="text-xs">Harvest All</x-secondary-button>
                             </form>
                         @endif
+                        @if ($farm->fields->contains(fn ($f) => $f->isEmpty()))
+                            <form method="POST" action="{{ route('fields.plant-all') }}" class="flex items-center gap-1">
+                                @csrf
+                                <select name="crop_type_id" class="rounded-md border-gray-300 text-xs" required>
+                                    <option value="">Plant all empty…</option>
+                                    @foreach ($cropTypes->where('required_level', '<=', $farm->level) as $crop)
+                                        <option value="{{ $crop->id }}">{{ $crop->icon }} {{ $crop->name }}</option>
+                                    @endforeach
+                                </select>
+                                <x-secondary-button type="submit" class="text-xs">Plant All</x-secondary-button>
+                            </form>
+                        @endif
                     </div>
                 </div>
                 <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
                     @foreach ($farm->fields as $field)
                         <div class="border rounded-lg p-4 flex flex-col justify-between {{ $field->isReady() ? 'border-green-400 bg-green-50' : 'border-gray-200' }}">
-                            <div class="text-xs text-gray-500 mb-2">Plot #{{ $field->plot_number }}</div>
+                            <form method="POST" action="{{ route('fields.rename', $field) }}" class="flex items-center gap-1 mb-2">
+                                @csrf
+                                <input type="text" name="nickname" value="{{ $field->nickname }}" placeholder="Plot #{{ $field->plot_number }}" class="text-xs text-gray-500 border-0 border-b border-transparent hover:border-gray-300 focus:border-gray-400 focus:ring-0 px-0 py-0 bg-transparent w-full" maxlength="255">
+                                <button type="submit" class="text-xs text-gray-300 hover:text-gray-500">✓</button>
+                            </form>
 
                             @if ($field->isEmpty())
                                 <div class="text-3xl mb-2">🟫</div>
@@ -193,7 +209,11 @@
                         @php($daysUnfed = $animal->isFedToday() ? 0 : $farm->current_day - ($animal->fed_on_day ?? $animal->purchased_on_day))
                         <div class="border rounded-lg p-4 {{ $animal->isFedToday() ? 'border-green-400 bg-green-50' : ($daysUnfed >= 2 ? 'border-red-300 bg-red-50' : 'border-gray-200') }}">
                             <div class="text-3xl mb-1">{{ $animal->animalType->icon }}</div>
-                            <p class="text-sm font-medium text-gray-800">{{ $animal->animalType->name }}</p>
+                            <form method="POST" action="{{ route('animals.rename', $animal) }}" class="flex items-center gap-1 mb-1">
+                                @csrf
+                                <input type="text" name="nickname" value="{{ $animal->nickname }}" placeholder="{{ $animal->animalType->name }}" class="text-sm font-medium text-gray-800 border-0 border-b border-transparent hover:border-gray-300 focus:border-gray-400 focus:ring-0 px-0 py-0 bg-transparent w-full" maxlength="255">
+                                <button type="submit" class="text-xs text-gray-300 hover:text-gray-500">✓</button>
+                            </form>
                             <p class="text-xs text-gray-500 mb-3">
                                 @if ($animal->isFedToday())
                                     Fed today ✅
@@ -266,6 +286,12 @@
                             {{ $marketPct >= 110 ? '📈' : ($marketPct <= 90 ? '📉' : '➖') }} Prices at {{ $marketPct }}% today
                         </span>
                         <span class="text-xs text-gray-500">{{ $farm->inventoryUsed() }} / {{ $farm->storageCapacity() }} slots used</span>
+                        @if ($farm->inventoryItems->isNotEmpty())
+                            <form method="POST" action="{{ route('inventory.sell-all') }}">
+                                @csrf
+                                <x-secondary-button type="submit" class="text-xs">Sell All</x-secondary-button>
+                            </form>
+                        @endif
                     </div>
                 </div>
                 <div class="h-1.5 w-full bg-gray-200 rounded-full overflow-hidden mb-4">
@@ -418,9 +444,13 @@
                         </div>
                     @endforeach
                     @foreach (\App\Models\Achievement::whereNotIn('id', $farm->achievements->pluck('id'))->get() as $locked)
-                        <div class="border border-gray-200 rounded-lg p-3 text-center opacity-50" title="{{ $locked->description }}">
+                        @php($progress = $achievementProgress[$locked->key] ?? null)
+                        <div class="border border-gray-200 rounded-lg p-3 text-center opacity-60" title="{{ $locked->description }}">
                             <div class="text-2xl mb-1 grayscale">🔒</div>
                             <p class="text-xs font-medium text-gray-500">{{ $locked->name }}</p>
+                            @if ($progress && $progress['goal'] > 1)
+                                <p class="text-[10px] text-gray-400 mt-1">{{ (int) $progress['progress'] }} / {{ (int) $progress['goal'] }}</p>
+                            @endif
                         </div>
                     @endforeach
                 </div>

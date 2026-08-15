@@ -19,6 +19,7 @@ class Field extends Model
     protected $fillable = [
         'farm_id',
         'plot_number',
+        'nickname',
         'crop_type_id',
         'previous_crop_type_id',
         'planted_on_day',
