@@ -28,11 +28,13 @@ class Farm extends Model
         'current_day',
         'field_slots',
         'xp',
+        'market_multiplier',
     ];
 
     protected $casts = [
         'cash' => 'decimal:2',
         'xp' => 'integer',
+        'market_multiplier' => 'decimal:2',
     ];
 
     public function user(): BelongsTo

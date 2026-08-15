@@ -20,7 +20,7 @@
 
             <div class="bg-white overflow-hidden shadow-sm rounded-lg p-6 space-y-3">
                 <h3 class="text-lg font-semibold text-gray-800">📦 Market &amp; Storage</h3>
-                <p>Sell harvested crops and animal produce for cash. Your storage has a capacity — once full, extra harvests are wasted, so sell regularly or buy a Storage Barn.</p>
+                <p>Sell harvested crops and animal produce for cash. Prices drift a little each day (shown as a % badge) — selling when prices are up earns more. Your storage has a capacity — once full, extra harvests are wasted, so sell regularly or buy a Storage Barn.</p>
             </div>
 
             <div class="bg-white overflow-hidden shadow-sm rounded-lg p-6 space-y-3">

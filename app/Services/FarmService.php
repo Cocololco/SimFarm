@@ -41,6 +41,14 @@ class FarmService
     /** Out of 100 weight points, the rest of the time nothing happens. */
     private const RANDOM_EVENT_TOTAL_WEIGHT = 100;
 
+    /** Market multiplier applied to inventory sales is kept within this band. */
+    private const MARKET_MULTIPLIER_MIN = 0.70;
+
+    private const MARKET_MULTIPLIER_MAX = 1.30;
+
+    /** Max the multiplier can drift by in a single day. */
+    private const MARKET_MULTIPLIER_MAX_STEP = 0.08;
+
     /**
      * One daily quest is deterministically assigned per farm per day (see
      * todaysQuest()) and checked/rewarded automatically at end of day.
@@ -274,7 +282,7 @@ class FarmService
         }
 
         $product = $item->product();
-        $total = $product['sell_price'] * $quantity;
+        $total = round($product['sell_price'] * $quantity * (float) $farm->market_multiplier, 2);
 
         $farm->addCash($total);
         $this->logTransaction($farm, 'sell', "Sold {$quantity}x {$product['name']}.", $total);
@@ -395,8 +403,27 @@ class FarmService
 
         $this->rollRandomEvent($farm);
         $this->rewardQuestIfComplete($farm);
+        $this->driftMarketMultiplier($farm);
 
         $farm->increment('current_day');
+    }
+
+    /**
+     * Sell prices drift by a small random amount each day (a bounded
+     * random walk), so timing sales for a good market matters.
+     */
+    private function driftMarketMultiplier(Farm $farm): void
+    {
+        $stepPercent = mt_rand(
+            (int) (-self::MARKET_MULTIPLIER_MAX_STEP * 100),
+            (int) (self::MARKET_MULTIPLIER_MAX_STEP * 100)
+        );
+        $step = $stepPercent / 100;
+
+        $next = (float) $farm->market_multiplier + $step;
+        $next = max(self::MARKET_MULTIPLIER_MIN, min(self::MARKET_MULTIPLIER_MAX, $next));
+
+        $farm->update(['market_multiplier' => round($next, 2)]);
     }
 
     /**

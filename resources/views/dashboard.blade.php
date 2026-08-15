@@ -221,10 +221,16 @@
             </div>
 
             {{-- Inventory / Market --}}
+            @php($marketPct = (int) round((float) $farm->market_multiplier * 100))
             <div class="bg-white overflow-hidden shadow-sm rounded-lg p-6">
-                <div class="flex items-center justify-between mb-4">
+                <div class="flex items-center justify-between mb-4 flex-wrap gap-2">
                     <h3 class="text-lg font-semibold text-gray-800">📦 Inventory &amp; Market</h3>
-                    <span class="text-xs text-gray-500">{{ $farm->inventoryUsed() }} / {{ $farm->storageCapacity() }} slots used</span>
+                    <div class="flex items-center gap-2">
+                        <span class="inline-flex items-center gap-1 rounded-full px-3 py-1 text-xs font-medium {{ $marketPct >= 110 ? 'bg-green-100 text-green-800' : ($marketPct <= 90 ? 'bg-red-100 text-red-800' : 'bg-gray-100 text-gray-600') }}">
+                            {{ $marketPct >= 110 ? '📈' : ($marketPct <= 90 ? '📉' : '➖') }} Prices at {{ $marketPct }}% today
+                        </span>
+                        <span class="text-xs text-gray-500">{{ $farm->inventoryUsed() }} / {{ $farm->storageCapacity() }} slots used</span>
+                    </div>
                 </div>
                 <div class="h-1.5 w-full bg-gray-200 rounded-full overflow-hidden mb-4">
                     @php($storagePct = $farm->storageCapacity() > 0 ? min(100, (int) round(($farm->inventoryUsed() / $farm->storageCapacity()) * 100)) : 0)
@@ -248,11 +254,12 @@
                             <tbody>
                                 @foreach ($farm->inventoryItems as $item)
                                     @php($product = $item->product())
+                                    @php($unitPrice = $product['sell_price'] * (float) $farm->market_multiplier)
                                     <tr class="border-b last:border-0">
                                         <td class="py-2 pr-4">{{ $product['icon'] }} {{ $product['name'] }}</td>
                                         <td class="py-2 pr-4">{{ $item->quantity }}</td>
-                                        <td class="py-2 pr-4">${{ number_format($product['sell_price'], 2) }}</td>
-                                        <td class="py-2 pr-4">${{ number_format($product['sell_price'] * $item->quantity, 2) }}</td>
+                                        <td class="py-2 pr-4">${{ number_format($unitPrice, 2) }}</td>
+                                        <td class="py-2 pr-4">${{ number_format($unitPrice * $item->quantity, 2) }}</td>
                                         <td class="py-2">
                                             <form method="POST" action="{{ route('inventory.sell', $item) }}">
                                                 @csrf
