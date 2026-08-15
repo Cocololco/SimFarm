@@ -12,6 +12,7 @@ class CropType extends Model
 
     protected $fillable = [
         'key',
+        'required_level',
         'name',
         'icon',
         'seed_price',

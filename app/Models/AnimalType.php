@@ -12,6 +12,7 @@ class AnimalType extends Model
 
     protected $fillable = [
         'key',
+        'required_level',
         'name',
         'icon',
         'buy_price',

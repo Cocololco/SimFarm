@@ -8,16 +8,39 @@ use App\Models\CropType;
 use App\Models\Farm;
 use App\Models\Field;
 use App\Models\InventoryItem;
+use App\Models\Loan;
 use App\Models\Machinery;
 use App\Models\MachineryType;
 use Illuminate\Validation\ValidationException;
 
 /**
  * All farm gameplay actions live here, so controllers stay thin and the
- * rules (costs, growth, production) are testable in isolation.
+ * rules (costs, growth, production, XP, risk) are testable in isolation.
  */
 class FarmService
 {
+    /** Days an animal can go unfed before it's lost. */
+    public const ANIMAL_NEGLECT_DAYS = 3;
+
+    /** Max principal a farm can borrow, and can only hold one loan at a time. */
+    public const MAX_LOAN_AMOUNT = 1000.0;
+
+    public const LOAN_DAILY_INTEREST_RATE = 0.05;
+
+    /**
+     * Random daily events rolled at the end of each day: [type, weight,
+     * description, cash delta (positive or negative)].
+     */
+    private const RANDOM_EVENTS = [
+        ['type' => 'bumper_harvest', 'weight' => 10, 'description' => 'A neighbor paid extra for your goods.', 'amount' => 25],
+        ['type' => 'lucky_find', 'weight' => 6, 'description' => 'You found an old chest buried in a field!', 'amount' => 40],
+        ['type' => 'storm_damage', 'weight' => 10, 'description' => 'A storm damaged a fence; minor repairs needed.', 'amount' => -15],
+        ['type' => 'pest_trouble', 'weight' => 8, 'description' => 'Pests got into storage; some supplies were lost.', 'amount' => -20],
+    ];
+
+    /** Out of 100 weight points, the rest of the time nothing happens. */
+    private const RANDOM_EVENT_TOTAL_WEIGHT = 100;
+
     public function plant(Farm $farm, Field $field, CropType $cropType): void
     {
         if ($field->farm_id !== $farm->id) {
@@ -28,11 +51,14 @@ class FarmService
             throw ValidationException::withMessages(['field' => 'That field is already planted.']);
         }
 
+        $this->assertLevel($farm, $cropType->required_level, 'crop_type', $cropType->name);
+
         if (! $farm->canAfford((float) $cropType->seed_price)) {
             throw ValidationException::withMessages(['cash' => 'Not enough cash to buy seeds.']);
         }
 
         $farm->spendCash((float) $cropType->seed_price);
+        $this->logTransaction($farm, 'plant', "Planted {$cropType->name}.", -(float) $cropType->seed_price);
 
         $field->update([
             'crop_type_id' => $cropType->id,
@@ -53,7 +79,16 @@ class FarmService
         $cropType = $field->cropType;
         $amount = $field->harvestYield();
 
-        $this->addToInventory($farm, $cropType->key, $amount);
+        $added = $this->addToInventory($farm, $cropType->key, $amount);
+
+        $this->logTransaction($farm, 'harvest', "Harvested {$added}x {$cropType->name}.", null);
+
+        if ($added < $amount) {
+            $wasted = $amount - $added;
+            $this->logTransaction($farm, 'storage_full', "Storage was full — {$wasted}x {$cropType->name} spoiled.", null);
+        }
+
+        $farm->addXp($added * 2);
 
         $field->update([
             'crop_type_id' => null,
@@ -76,6 +111,7 @@ class FarmService
 
         $farm->spendCash($cost);
         $farm->increment('field_slots');
+        $this->logTransaction($farm, 'buy_field', 'Bought a new field.', -$cost);
 
         return $farm->fields()->create([
             'plot_number' => $farm->field_slots,
@@ -84,11 +120,15 @@ class FarmService
 
     public function buyAnimal(Farm $farm, AnimalType $animalType): Animal
     {
+        $this->assertLevel($farm, $animalType->required_level, 'animal_type', $animalType->name);
+
         if (! $farm->canAfford((float) $animalType->buy_price)) {
             throw ValidationException::withMessages(['cash' => 'Not enough cash to buy that animal.']);
         }
 
         $farm->spendCash((float) $animalType->buy_price);
+        $this->logTransaction($farm, 'buy_animal', "Bought a {$animalType->name}.", -(float) $animalType->buy_price);
+        $farm->addXp(5);
 
         return $farm->animals()->create([
             'animal_type_id' => $animalType->id,
@@ -120,6 +160,8 @@ class FarmService
         }
 
         $farm->spendCash($cost);
+        $this->logTransaction($farm, 'feed', "Fed {$animal->animalType->name}.", -$cost);
+        $farm->addXp(1);
 
         $animal->update(['fed_on_day' => $farm->current_day]);
     }
@@ -130,13 +172,20 @@ class FarmService
             throw ValidationException::withMessages(['animal' => 'That animal does not belong to your farm.']);
         }
 
-        $farm->addCash((float) $animal->animalType->sell_price);
+        $price = (float) $animal->animalType->sell_price;
+        $name = $animal->animalType->name;
+
+        $farm->addCash($price);
+        $this->logTransaction($farm, 'sell_animal', "Sold {$name}.", $price);
+        $farm->addXp(3);
 
         $animal->delete();
     }
 
     public function buyMachinery(Farm $farm, MachineryType $machineryType): Machinery
     {
+        $this->assertLevel($farm, $machineryType->required_level, 'machinery_type', $machineryType->name);
+
         if ($farm->machinery()->where('machinery_type_id', $machineryType->id)->exists()) {
             throw ValidationException::withMessages(['machinery' => 'You already own that machine.']);
         }
@@ -146,6 +195,8 @@ class FarmService
         }
 
         $farm->spendCash((float) $machineryType->price);
+        $this->logTransaction($farm, 'buy_machinery', "Bought a {$machineryType->name}.", -(float) $machineryType->price);
+        $farm->addXp(10);
 
         return $farm->machinery()->create([
             'machinery_type_id' => $machineryType->id,
@@ -163,9 +214,12 @@ class FarmService
             throw ValidationException::withMessages(['quantity' => 'Invalid quantity to sell.']);
         }
 
-        $unitPrice = $item->product()['sell_price'];
+        $product = $item->product();
+        $total = $product['sell_price'] * $quantity;
 
-        $farm->addCash($unitPrice * $quantity);
+        $farm->addCash($total);
+        $this->logTransaction($farm, 'sell', "Sold {$quantity}x {$product['name']}.", $total);
+        $farm->addXp($quantity);
 
         if ($quantity === $item->quantity) {
             $item->delete();
@@ -174,31 +228,168 @@ class FarmService
         }
     }
 
+    public function takeLoan(Farm $farm, float $amount): Loan
+    {
+        if ($farm->activeLoan()) {
+            throw ValidationException::withMessages(['loan' => 'Repay your existing loan before taking another.']);
+        }
+
+        if ($amount < 1 || $amount > self::MAX_LOAN_AMOUNT) {
+            throw ValidationException::withMessages(['amount' => 'Loan amount must be between $1 and $'.self::MAX_LOAN_AMOUNT.'.']);
+        }
+
+        $loan = $farm->loans()->create([
+            'principal' => $amount,
+            'balance' => $amount,
+            'daily_interest_rate' => self::LOAN_DAILY_INTEREST_RATE,
+            'taken_on_day' => $farm->current_day,
+        ]);
+
+        $farm->addCash($amount);
+        $this->logTransaction($farm, 'loan_taken', 'Took out a loan of $'.number_format($amount, 2).'.', $amount);
+
+        return $loan;
+    }
+
+    public function repayLoan(Farm $farm, Loan $loan, float $amount): void
+    {
+        if ($loan->farm_id !== $farm->id) {
+            throw ValidationException::withMessages(['loan' => 'That loan does not belong to your farm.']);
+        }
+
+        if ($amount < 0.01 || $amount > (float) $loan->balance) {
+            throw ValidationException::withMessages(['amount' => 'Invalid repayment amount.']);
+        }
+
+        if (! $farm->canAfford($amount)) {
+            throw ValidationException::withMessages(['cash' => 'Not enough cash to repay that much.']);
+        }
+
+        $farm->spendCash($amount);
+        $loan->decrement('balance', $amount);
+        $this->logTransaction($farm, 'loan_repaid', 'Repaid $'.number_format($amount, 2).' of your loan.', -$amount);
+    }
+
     /**
      * Advance the farm by one day: fed animals that are due produce goods,
-     * then the day counter ticks forward.
+     * neglected animals may be lost, loan interest accrues, a random event
+     * may occur, then the day counter ticks forward.
      */
     public function endDay(Farm $farm): void
     {
-        $farm->loadMissing('animals.animalType');
+        // load(), not loadMissing(): $farm may be a reused instance whose
+        // animals/loans were cached before other actions changed them.
+        $farm->load('animals.animalType', 'loans');
 
         foreach ($farm->animals as $animal) {
-            if ($animal->isFedToday() && $animal->isDueToProduce()) {
-                $this->addToInventory($farm, $animal->animalType->produce_key, 1);
-                $animal->update(['last_produced_day' => $farm->current_day]);
+            if ($animal->isFedToday()) {
+                if ($animal->isDueToProduce()) {
+                    $added = $this->addToInventory($farm, $animal->animalType->produce_key, 1);
+                    if ($added > 0) {
+                        $animal->update(['last_produced_day' => $farm->current_day]);
+                    }
+                }
+
+                continue;
+            }
+
+            // +1: today (the day that's ending) counts as an unfed day too,
+            // so N consecutive end-of-day calls without feeding = N days of
+            // neglect, not N-1.
+            $lastCaredForDay = $animal->fed_on_day ?? $animal->purchased_on_day;
+            $daysSinceCare = ($farm->current_day + 1) - $lastCaredForDay;
+
+            if ($daysSinceCare >= self::ANIMAL_NEGLECT_DAYS) {
+                $name = $animal->animalType->name;
+                $animal->delete();
+                $this->logTransaction($farm, 'animal_lost', "Your {$name} ran away after being neglected too long.", null);
             }
         }
+
+        $loan = $farm->activeLoan();
+        if ($loan) {
+            $interest = round((float) $loan->balance * (float) $loan->daily_interest_rate, 2);
+            $loan->increment('balance', $interest);
+            $this->logTransaction($farm, 'loan_interest', 'Loan interest accrued: $'.number_format($interest, 2).'.', null);
+        }
+
+        $this->rollRandomEvent($farm);
 
         $farm->increment('current_day');
     }
 
-    private function addToInventory(Farm $farm, string $itemKey, int $amount): void
+    private function rollRandomEvent(Farm $farm): void
     {
+        $roll = mt_rand(1, self::RANDOM_EVENT_TOTAL_WEIGHT);
+        $cumulative = 0;
+
+        foreach (self::RANDOM_EVENTS as $event) {
+            $cumulative += $event['weight'];
+
+            if ($roll > $cumulative) {
+                continue;
+            }
+
+            $amount = (float) $event['amount'];
+
+            // Never push a farm into debt from bad luck alone.
+            if ($amount < 0) {
+                $amount = -min(abs($amount), (float) $farm->cash);
+            }
+
+            if ($amount > 0) {
+                $farm->addCash($amount);
+            } elseif ($amount < 0) {
+                $farm->spendCash(abs($amount));
+            }
+
+            $this->logTransaction($farm, 'event', $event['description'], $amount !== 0.0 ? $amount : null);
+
+            return;
+        }
+
+        // Remaining weight: a quiet day, nothing logged.
+    }
+
+    private function assertLevel(Farm $farm, int $requiredLevel, string $field, string $name): void
+    {
+        if ($farm->level < $requiredLevel) {
+            throw ValidationException::withMessages([
+                $field => "Reach farm level {$requiredLevel} to unlock {$name}.",
+            ]);
+        }
+    }
+
+    /**
+     * Adds up to the farm's remaining storage capacity; excess is wasted
+     * and reported via the return value so callers can note it happened.
+     */
+    private function addToInventory(Farm $farm, string $itemKey, int $amount): int
+    {
+        $remainingCapacity = max(0, $farm->storageCapacity() - $farm->inventoryUsed());
+        $toAdd = min($amount, $remainingCapacity);
+
+        if ($toAdd <= 0) {
+            return 0;
+        }
+
         $item = $farm->inventoryItems()->firstOrCreate(
             ['item_key' => $itemKey],
             ['quantity' => 0]
         );
 
-        $item->increment('quantity', $amount);
+        $item->increment('quantity', $toAdd);
+
+        return $toAdd;
+    }
+
+    private function logTransaction(Farm $farm, string $type, string $description, ?float $amount): void
+    {
+        $farm->transactions()->create([
+            'day' => $farm->current_day,
+            'type' => $type,
+            'description' => $description,
+            'amount' => $amount,
+        ]);
     }
 }

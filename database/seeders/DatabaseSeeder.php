@@ -16,6 +16,7 @@ class DatabaseSeeder extends Seeder
             CropTypeSeeder::class,
             AnimalTypeSeeder::class,
             MachineryTypeSeeder::class,
+            AchievementSeeder::class,
         ]);
     }
 }

@@ -84,3 +84,15 @@ registration via the `CreateFarmForNewUser` listener.
   `<x-component>` tags (e.g. `<x-secondary-button>`) — they broke Blade
   compilation here (`syntax error, unexpected token "endif"`). Prefer
   conditionally omitting the element (`@unless`/`@if`) instead.
+- On `Farm`, prefer relation *methods* (`$this->inventoryItems()->sum(...)`)
+  over cached relation *properties* (`$this->inventoryItems->sum(...)`) in
+  any helper that's read again after a write in the same request/object
+  lifetime (`inventoryUsed()`, `machineryEffectValue()`, `activeLoan()`,
+  `netWorth()` all do this deliberately). `$request->user()` — and its
+  cached `->farm` — persists as the *same* PHP object across multiple
+  simulated requests in feature tests (`actingAs()` reuses it), so a
+  property-cached collection loaded before a later write goes stale and
+  silently returns pre-write data. `FarmService::endDay()` uses `load()`
+  instead of `loadMissing()` for the same reason. Bit us as real test
+  failures once (loans/storage-cap/animal-neglect tests) — see git history
+  around that fix if this class of bug resurfaces.

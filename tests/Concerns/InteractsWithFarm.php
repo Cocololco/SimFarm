@@ -4,6 +4,7 @@ namespace Tests\Concerns;
 
 use App\Models\Farm;
 use App\Models\User;
+use Database\Seeders\AchievementSeeder;
 use Database\Seeders\AnimalTypeSeeder;
 use Database\Seeders\CropTypeSeeder;
 use Database\Seeders\MachineryTypeSeeder;
@@ -15,6 +16,7 @@ trait InteractsWithFarm
         $this->seed(CropTypeSeeder::class);
         $this->seed(AnimalTypeSeeder::class);
         $this->seed(MachineryTypeSeeder::class);
+        $this->seed(AchievementSeeder::class);
     }
 
     /**

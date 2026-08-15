@@ -1,8 +1,12 @@
 <?php
 
+use App\Http\Controllers\ActivityController;
 use App\Http\Controllers\AnimalController;
 use App\Http\Controllers\FarmController;
+use App\Http\Controllers\FarmSettingsController;
 use App\Http\Controllers\FieldController;
+use App\Http\Controllers\LeaderboardController;
+use App\Http\Controllers\LoanController;
 use App\Http\Controllers\MachineryController;
 use App\Http\Controllers\MarketController;
 use App\Http\Controllers\ProfileController;
@@ -39,7 +43,16 @@ Route::middleware(['auth', 'verified'])->group(function () {
 
     Route::post('/machinery/buy', [MachineryController::class, 'store'])->name('machinery.buy');
 
+    Route::post('/loans', [LoanController::class, 'store'])->name('loans.store');
+    Route::post('/loans/{loan}/repay', [LoanController::class, 'repay'])->name('loans.repay');
+
     Route::post('/turn/end', [TurnController::class, 'end'])->name('turn.end');
+
+    Route::get('/activity', [ActivityController::class, 'index'])->name('activity.index');
+    Route::get('/leaderboard', [LeaderboardController::class, 'index'])->name('leaderboard.index');
+
+    Route::get('/settings/farm', [FarmSettingsController::class, 'edit'])->name('farm-settings.edit');
+    Route::patch('/settings/farm', [FarmSettingsController::class, 'update'])->name('farm-settings.update');
 });
 
 Route::middleware('auth')->group(function () {

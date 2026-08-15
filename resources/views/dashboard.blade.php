@@ -4,7 +4,10 @@
             <h2 class="font-semibold text-xl text-gray-800 leading-tight">
                 🚜 {{ $farm->name }}
             </h2>
-            <div class="flex items-center gap-4 text-sm font-medium">
+            <div class="flex flex-wrap items-center gap-3 text-sm font-medium">
+                <span class="inline-flex items-center gap-1 rounded-full bg-purple-100 px-3 py-1 text-purple-800">
+                    ⭐ Level {{ $farm->level }}
+                </span>
                 <span class="inline-flex items-center gap-1 rounded-full bg-amber-100 px-3 py-1 text-amber-800">
                     📅 Day {{ $farm->current_day }}
                 </span>
@@ -15,6 +18,15 @@
                     @csrf
                     <x-primary-button>End Day →</x-primary-button>
                 </form>
+            </div>
+        </div>
+        <div class="mt-3 max-w-xs">
+            <div class="flex justify-between text-xs text-gray-500 mb-1">
+                <span>XP</span>
+                <span>{{ $farm->xpIntoLevel() }} / {{ \App\Models\Farm::XP_PER_LEVEL }}</span>
+            </div>
+            <div class="h-1.5 w-full bg-gray-200 rounded-full overflow-hidden">
+                <div class="h-full bg-purple-400" style="width: {{ (int) round(($farm->xpIntoLevel() / \App\Models\Farm::XP_PER_LEVEL) * 100) }}%"></div>
             </div>
         </div>
     </x-slot>
@@ -53,7 +65,7 @@
                                     @csrf
                                     <select name="crop_type_id" class="w-full rounded-md border-gray-300 text-sm" required>
                                         <option value="">Select seed…</option>
-                                        @foreach ($cropTypes as $crop)
+                                        @foreach ($cropTypes->where('required_level', '<=', $farm->level) as $crop)
                                             <option value="{{ $crop->id }}">{{ $crop->icon }} {{ $crop->name }} (${{ number_format((float) $crop->seed_price, 2) }})</option>
                                         @endforeach
                                     </select>
@@ -85,6 +97,16 @@
                         </form>
                     </div>
                 </div>
+
+                @php($lockedCrops = $cropTypes->where('required_level', '>', $farm->level))
+                @if ($lockedCrops->isNotEmpty())
+                    <p class="text-xs text-gray-400 mt-4">
+                        🔒 Unlocks later:
+                        @foreach ($lockedCrops as $crop)
+                            {{ $crop->icon }} {{ $crop->name }} (Lv.{{ $crop->required_level }}){{ ! $loop->last ? ',' : '' }}
+                        @endforeach
+                    </p>
+                @endif
             </div>
 
             {{-- Animals --}}
@@ -93,11 +115,18 @@
 
                 <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
                     @forelse ($farm->animals as $animal)
-                        <div class="border rounded-lg p-4 {{ $animal->isFedToday() ? 'border-green-400 bg-green-50' : 'border-gray-200' }}">
+                        @php($daysUnfed = $animal->isFedToday() ? 0 : $farm->current_day - ($animal->fed_on_day ?? $animal->purchased_on_day))
+                        <div class="border rounded-lg p-4 {{ $animal->isFedToday() ? 'border-green-400 bg-green-50' : ($daysUnfed >= 2 ? 'border-red-300 bg-red-50' : 'border-gray-200') }}">
                             <div class="text-3xl mb-1">{{ $animal->animalType->icon }}</div>
                             <p class="text-sm font-medium text-gray-800">{{ $animal->animalType->name }}</p>
                             <p class="text-xs text-gray-500 mb-3">
-                                {{ $animal->isFedToday() ? 'Fed today ✅' : 'Not fed today' }}
+                                @if ($animal->isFedToday())
+                                    Fed today ✅
+                                @elseif ($daysUnfed >= 2)
+                                    ⚠️ Unfed {{ $daysUnfed }} days — at risk!
+                                @else
+                                    Not fed today
+                                @endif
                             </p>
                             <div class="flex gap-2">
                                 @unless ($animal->isFedToday())
@@ -122,7 +151,7 @@
 
                 <h4 class="text-sm font-semibold text-gray-600 mb-2">Buy an animal</h4>
                 <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-                    @foreach ($animalTypes as $animalType)
+                    @foreach ($animalTypes->where('required_level', '<=', $farm->level) as $animalType)
                         <div class="border rounded-lg p-4">
                             <div class="text-3xl mb-1">{{ $animalType->icon }}</div>
                             <p class="text-sm font-medium text-gray-800">{{ $animalType->name }}</p>
@@ -137,11 +166,28 @@
                         </div>
                     @endforeach
                 </div>
+
+                @php($lockedAnimals = $animalTypes->where('required_level', '>', $farm->level))
+                @if ($lockedAnimals->isNotEmpty())
+                    <p class="text-xs text-gray-400 mt-4">
+                        🔒 Unlocks later:
+                        @foreach ($lockedAnimals as $animalType)
+                            {{ $animalType->icon }} {{ $animalType->name }} (Lv.{{ $animalType->required_level }}){{ ! $loop->last ? ',' : '' }}
+                        @endforeach
+                    </p>
+                @endif
             </div>
 
             {{-- Inventory / Market --}}
             <div class="bg-white overflow-hidden shadow-sm rounded-lg p-6">
-                <h3 class="text-lg font-semibold text-gray-800 mb-4">📦 Inventory &amp; Market</h3>
+                <div class="flex items-center justify-between mb-4">
+                    <h3 class="text-lg font-semibold text-gray-800">📦 Inventory &amp; Market</h3>
+                    <span class="text-xs text-gray-500">{{ $farm->inventoryUsed() }} / {{ $farm->storageCapacity() }} slots used</span>
+                </div>
+                <div class="h-1.5 w-full bg-gray-200 rounded-full overflow-hidden mb-4">
+                    @php($storagePct = $farm->storageCapacity() > 0 ? min(100, (int) round(($farm->inventoryUsed() / $farm->storageCapacity()) * 100)) : 0)
+                    <div class="h-full {{ $storagePct >= 90 ? 'bg-red-400' : 'bg-blue-400' }}" style="width: {{ $storagePct }}%"></div>
+                </div>
 
                 @if ($farm->inventoryItems->isEmpty())
                     <p class="text-sm text-gray-500">Nothing harvested yet.</p>
@@ -180,6 +226,39 @@
                 @endif
             </div>
 
+            {{-- Bank --}}
+            <div class="bg-white overflow-hidden shadow-sm rounded-lg p-6">
+                <h3 class="text-lg font-semibold text-gray-800 mb-4">🏦 Bank</h3>
+
+                @php($loan = $farm->loans->first(fn ($l) => $l->isActive()))
+                @if ($loan)
+                    <p class="text-sm text-gray-600 mb-3">
+                        Outstanding balance: <span class="font-semibold text-red-600">${{ number_format((float) $loan->balance, 2) }}</span>
+                        — accrues {{ number_format($loan->daily_interest_rate * 100, 0) }}% interest per day.
+                    </p>
+                    <form method="POST" action="{{ route('loans.repay', $loan) }}" class="flex flex-wrap items-end gap-2">
+                        @csrf
+                        <div>
+                            <label class="block text-xs text-gray-500 mb-1">Repay amount</label>
+                            <input type="number" name="amount" step="0.01" min="0.01" max="{{ $loan->balance }}" class="rounded-md border-gray-300 text-sm" required>
+                        </div>
+                        <x-secondary-button type="submit">Repay</x-secondary-button>
+                    </form>
+                @else
+                    <p class="text-sm text-gray-600 mb-3">
+                        Need cash fast? Borrow up to ${{ number_format($maxLoanAmount, 2) }} — repay whenever you like, but interest accrues daily.
+                    </p>
+                    <form method="POST" action="{{ route('loans.store') }}" class="flex flex-wrap items-end gap-2">
+                        @csrf
+                        <div>
+                            <label class="block text-xs text-gray-500 mb-1">Loan amount</label>
+                            <input type="number" name="amount" step="0.01" min="1" max="{{ $maxLoanAmount }}" class="rounded-md border-gray-300 text-sm" required>
+                        </div>
+                        <x-secondary-button type="submit">Take Loan</x-secondary-button>
+                    </form>
+                @endif
+            </div>
+
             {{-- Machinery --}}
             <div class="bg-white overflow-hidden shadow-sm rounded-lg p-6">
                 <h3 class="text-lg font-semibold text-gray-800 mb-4">🚜 Machinery</h3>
@@ -187,7 +266,7 @@
                 @php($ownedIds = $farm->machinery->pluck('machinery_type_id'))
 
                 <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-                    @foreach ($machineryTypes as $machineryType)
+                    @foreach ($machineryTypes->where('required_level', '<=', $farm->level) as $machineryType)
                         @php($owned = $ownedIds->contains($machineryType->id))
                         <div class="border rounded-lg p-4 {{ $owned ? 'border-green-400 bg-green-50' : 'border-gray-200' }}">
                             <div class="text-3xl mb-1">{{ $machineryType->icon }}</div>
@@ -207,6 +286,62 @@
                         </div>
                     @endforeach
                 </div>
+
+                @php($lockedMachinery = $machineryTypes->where('required_level', '>', $farm->level))
+                @if ($lockedMachinery->isNotEmpty())
+                    <p class="text-xs text-gray-400 mt-4">
+                        🔒 Unlocks later:
+                        @foreach ($lockedMachinery as $machineryType)
+                            {{ $machineryType->icon }} {{ $machineryType->name }} (Lv.{{ $machineryType->required_level }}){{ ! $loop->last ? ',' : '' }}
+                        @endforeach
+                    </p>
+                @endif
+            </div>
+
+            {{-- Achievements --}}
+            <div class="bg-white overflow-hidden shadow-sm rounded-lg p-6">
+                <h3 class="text-lg font-semibold text-gray-800 mb-4">🏆 Achievements</h3>
+                <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4">
+                    @foreach ($farm->achievements as $achievement)
+                        <div class="border border-amber-300 bg-amber-50 rounded-lg p-3 text-center" title="{{ $achievement->description }}">
+                            <div class="text-2xl mb-1">{{ $achievement->icon }}</div>
+                            <p class="text-xs font-medium text-gray-700">{{ $achievement->name }}</p>
+                        </div>
+                    @endforeach
+                    @foreach (\App\Models\Achievement::whereNotIn('id', $farm->achievements->pluck('id'))->get() as $locked)
+                        <div class="border border-gray-200 rounded-lg p-3 text-center opacity-50" title="{{ $locked->description }}">
+                            <div class="text-2xl mb-1 grayscale">🔒</div>
+                            <p class="text-xs font-medium text-gray-500">{{ $locked->name }}</p>
+                        </div>
+                    @endforeach
+                </div>
+            </div>
+
+            {{-- Recent Activity --}}
+            <div class="bg-white overflow-hidden shadow-sm rounded-lg p-6">
+                <div class="flex items-center justify-between mb-4">
+                    <h3 class="text-lg font-semibold text-gray-800">📜 Recent Activity</h3>
+                    <a href="{{ route('activity.index') }}" class="text-sm text-indigo-600 hover:underline">View all →</a>
+                </div>
+                @if ($recentTransactions->isEmpty())
+                    <p class="text-sm text-gray-500">Nothing has happened yet.</p>
+                @else
+                    <ul class="divide-y">
+                        @foreach ($recentTransactions as $transaction)
+                            <li class="py-2 flex items-center justify-between text-sm">
+                                <span class="text-gray-600">
+                                    <span class="text-xs text-gray-400">Day {{ $transaction->day }}</span>
+                                    {{ $transaction->description }}
+                                </span>
+                                @if (! is_null($transaction->amount))
+                                    <span class="font-medium {{ $transaction->amount >= 0 ? 'text-green-600' : 'text-red-600' }}">
+                                        {{ $transaction->amount >= 0 ? '+' : '-' }}${{ number_format(abs($transaction->amount), 2) }}
+                                    </span>
+                                @endif
+                            </li>
+                        @endforeach
+                    </ul>
+                @endif
             </div>
 
         </div>
