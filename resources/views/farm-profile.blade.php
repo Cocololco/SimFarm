@@ -75,7 +75,7 @@
                 @endif
             </div>
 
-            <a href="{{ route('leaderboard.index') }}" class="text-sm text-indigo-600 hover:underline">← Back to leaderboard</a>
+            <a href="{{ route('leaderboard.index') }}" class="text-sm text-emerald-600 hover:underline">← Back to leaderboard</a>
         </div>
     </div>
 </x-app-layout>

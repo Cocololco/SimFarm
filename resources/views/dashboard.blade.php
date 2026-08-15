@@ -93,7 +93,7 @@
             @php($unfedAnimals = $farm->animals->filter(fn ($a) => ! $a->isFedToday())->count())
             @php($storageFull = $farm->storageCapacity() > 0 && $farm->inventoryUsed() / $farm->storageCapacity() >= 0.9)
             @if ($readyFields || $unfedAnimals || $storageFull)
-                <div class="rounded-md bg-indigo-50 border border-indigo-200 px-4 py-3 text-sm text-indigo-800">
+                <div class="rounded-md bg-emerald-50 border border-emerald-200 px-4 py-3 text-sm text-emerald-800">
                     📋 Needs attention:
                     @if ($readyFields) {{ $readyFields }} field(s) ready to harvest @endif
                     @if ($readyFields && $unfedAnimals) · @endif
@@ -105,7 +105,7 @@
 
             {{-- Today's Goal --}}
             @php($quest = $questProgress['quest'])
-            <div class="bg-white overflow-hidden shadow-sm rounded-lg p-6 border-l-4 {{ $questProgress['completed'] ? 'border-green-400' : 'border-indigo-300' }}">
+            <div class="bg-white overflow-hidden shadow-sm rounded-lg p-6 border-l-4 {{ $questProgress['completed'] ? 'border-green-400' : 'border-emerald-300' }}">
                 <div class="flex items-center justify-between flex-wrap gap-2">
                     <div>
                         <h3 class="text-sm font-semibold text-gray-500 uppercase tracking-wide">🎯 Today's Goal</h3>
@@ -532,7 +532,7 @@
             <div class="bg-white overflow-hidden shadow-sm rounded-lg p-6">
                 <div class="flex items-center justify-between mb-4">
                     <h3 class="text-lg font-semibold text-gray-800">📜 Recent Activity</h3>
-                    <a href="{{ route('activity.index') }}" class="text-sm text-indigo-600 hover:underline">View all →</a>
+                    <a href="{{ route('activity.index') }}" class="text-sm text-emerald-600 hover:underline">View all →</a>
                 </div>
                 @if ($recentTransactions->isEmpty())
                     <p class="text-sm text-gray-500">Nothing has happened yet.</p>

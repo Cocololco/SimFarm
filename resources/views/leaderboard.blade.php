@@ -41,13 +41,13 @@
                         </thead>
                         <tbody>
                             @foreach ($rankings as $index => $row)
-                                <tr class="border-b last:border-0 {{ $row['farm']->user_id === auth()->id() ? 'bg-indigo-50' : '' }}">
+                                <tr class="border-b last:border-0 {{ $row['farm']->user_id === auth()->id() ? 'bg-emerald-50' : '' }}">
                                     <td class="py-2 pr-4 text-gray-500">
                                         {{ $index === 0 ? '🥇' : ($index === 1 ? '🥈' : ($index === 2 ? '🥉' : $index + 1)) }}
                                     </td>
                                     <td class="py-2 pr-4">{{ $row['farm']->user->name }}</td>
                                     <td class="py-2 pr-4 text-gray-500">
-                                        <a href="{{ route('farms.show', $row['farm']) }}" class="hover:underline hover:text-indigo-600">{{ $row['farm']->name }}</a>
+                                        <a href="{{ route('farms.show', $row['farm']) }}" class="hover:underline hover:text-emerald-600">{{ $row['farm']->name }}</a>
                                     </td>
                                     <td class="py-2 pr-4">⭐ {{ $row['farm']->level }}</td>
                                     <td class="py-2 pr-4 font-medium">${{ number_format($row['net_worth'], 2) }}</td>
@@ -62,7 +62,7 @@
             </div>
 
             <p class="mt-4 text-sm text-gray-500">
-                Curious about the whole community? Check the <a href="{{ route('stats.index') }}" class="text-indigo-600 hover:underline">platform stats</a>.
+                Curious about the whole community? Check the <a href="{{ route('stats.index') }}" class="text-emerald-600 hover:underline">platform stats</a>.
             </p>
         </div>
     </div>

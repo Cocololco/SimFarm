@@ -65,7 +65,7 @@
 
             <div class="bg-white overflow-hidden shadow-sm rounded-lg p-6 space-y-3">
                 <h3 class="text-lg font-semibold text-gray-800">🏆 Achievements &amp; Leaderboard</h3>
-                <p>Unlock achievements for milestones like your first harvest or reaching level 5. Check the <a href="{{ route('leaderboard.index') }}" class="text-indigo-600 hover:underline">Leaderboard</a> to see how your net worth compares to other farmers.</p>
+                <p>Unlock achievements for milestones like your first harvest or reaching level 5. Check the <a href="{{ route('leaderboard.index') }}" class="text-emerald-600 hover:underline">Leaderboard</a> to see how your net worth compares to other farmers.</p>
             </div>
 
         </div>
